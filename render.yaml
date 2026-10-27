@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: denupe-ia-backend
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    autoDeployTrigger: commit

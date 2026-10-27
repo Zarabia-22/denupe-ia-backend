@@ -1,0 +1,14 @@
+{
+  "datos": 200,
+  "entrenamiento": 140,
+  "prueba": 60,
+  "accuracy_prueba_simulada": 0.8333,
+  "f1_macro_prueba_simulada": 0.8326,
+  "categorias": [
+    "Alumbrado",
+    "Limpieza",
+    "Ruido",
+    "Seguridad"
+  ],
+  "nota": "Métricas con textos simulados de un vocabulario restringido, no con denuncias reales."
+}

@@ -1,0 +1,11 @@
+### Estado
+GET http://127.0.0.1:8000/health
+
+### Sugerir categoría
+POST http://127.0.0.1:8000/api/ia/sugerir-categoria
+Content-Type: application/json
+
+{
+  "titulo": "Basura acumulada en mi calle",
+  "descripcion": "Hay bolsas de basura y residuos que no han sido recogidos durante varios dias"
+}
