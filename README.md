@@ -2,7 +2,23 @@
 
 Microservicio independiente de la aplicación Flutter [DenuPe](https://github.com/Zarabia-22/denupe). Implementa la sugerencia de categorías a partir de **título + descripción** mediante el **modelo entrenado por el usuario en Google Colab**: `TfidfVectorizer(lowercase=True, ngram_range=(1,2))` y `DecisionTreeClassifier(max_depth=10, random_state=42)`.
 
-**Categorías:** Alumbrado, Limpieza, Ruido y Seguridad. Entrenado con 200 denuncias simuladas: 140 para entrenamiento y 60 para evaluación. El notebook registró un **83,33 %** de exactitud en las muestras simuladas. Esto no garantiza esa precisión en denuncias reales.
+**Clases originales del modelo:** Alumbrado, Limpieza, Ruido y Seguridad. Entrenado con 200 denuncias simuladas: 140 para entrenamiento y 60 para evaluación. El notebook registró un **83,33 %** de exactitud en las muestras simuladas. Esto no garantiza esa precisión en denuncias reales.
+
+### Categorías oficiales de DenuPe
+
+El servicio devuelve nombres compatibles con el catálogo de la aplicación:
+- Alumbrado público (`alumbrado`)
+- Seguridad ciudadana (`seguridad`)
+- Limpieza y residuos (`limpieza`)
+- Agua y saneamiento (`agua`)
+- Tránsito y transporte (`transito`)
+- Parques y áreas verdes (`areas_verdes`)
+- Vialidad e infraestructura (`infraestructura`)
+- Otros (`otros`)
+
+El árbol preentrenado **solo conoce las cuatro clases originales**. Las clases Alumbrado, Limpieza y Seguridad se traducen a sus nombres oficiales; Ruido se traduce a Otros, porque DenuPe no tiene una categoría específica de ruido. Las categorías Agua, Tránsito, Parques e Infraestructura se detectan mediante **reglas textuales explícitas**, no mediante entrenamiento nuevo. Si hay indicios de varias de estas categorías, no se aplica una regla; el clasificador original puede sugerir una clase existente. Se recomienda reentrenar con ejemplos representativos de las ocho categorías antes de afirmar clasificación ML completa.
+
+En respuestas basadas en reglas, `confianza_modelo` es `null` y `cobertura_vocabulario` es `0.0` (no se utiliza para tomar esa decisión).
 
 ## Ejecutar localmente (Python 3.11)
 
@@ -28,7 +44,7 @@ Ejemplo de solicitud:
 Ejemplo de respuesta (valores numéricos ilustrativos):
 
 ```json
-{"sugerida":true,"categoria":"Limpieza","confianza_modelo":1.0,"cobertura_vocabulario":0.625,"motivo":null}
+{"sugerida":true,"categoria":"Limpieza y residuos","confianza_modelo":1.0,"cobertura_vocabulario":0.625,"motivo":null}
 ```
 
 Si el texto es poco informativo se devuelve `sugerida:false`, `categoria:null` y un `motivo`; el usuario debe conservar la opción manual. `confianza_modelo` es el resultado no calibrado de `predict_proba`, **no** un porcentaje de certeza real.
