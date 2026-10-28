@@ -1,0 +1,54 @@
+name: Entrenar modelo de ocho categorias
+
+on:
+  push:
+    branches:
+      - feature/mejoras-procesamiento-datos
+    paths:
+      - 'data/**'
+      - 'training/**'
+      - 'app/**'
+      - 'tests/**'
+      - '.github/workflows/train-model.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  entrenamiento:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Obtener codigo
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Preparar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Instalar dependencias fijadas
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Entrenar las ocho clases y generar metricas
+        run: python -m training.train
+
+      - name: Ejecutar pruebas de API e integridad de datos
+        run: python -m pytest -q
+
+      - name: Guardar artefactos entrenados en esta rama
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add models/modelo_categorias.joblib.gz models/vectorizador_tfidf.joblib.gz models/metricas.json
+          if git diff --cached --quiet; then
+            echo "Artefactos sin cambios."
+          else
+            git commit -m "build(ia): versionar modelo entrenado con 800 denuncias simuladas"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
