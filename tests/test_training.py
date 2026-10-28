@@ -33,3 +33,19 @@ def test_division_sin_grupos_compartidos():
 def test_particion_reproducible():
     filas = leer_datos()
     assert dividir_por_grupo(filas) == dividir_por_grupo(filas)
+
+
+def test_objetivo_minimo_de_exactitud_simulada():
+    """Evita publicar modelos inferiores al umbral acordado en este benchmark."""
+    import json
+    from pathlib import Path
+
+    metricas = json.loads(
+        (Path(__file__).resolve().parents[1] / "models" / "metricas.json")
+        .read_text(encoding="utf-8")
+    )
+    assert metricas["datos"] == 2400
+    assert metricas["accuracy_prueba_simulada"] >= 0.90
+    assert metricas["f1_macro_prueba_simulada"] >= 0.90
+    assert metricas["evaluacion_prueba"]["total"] == 360
+    assert metricas["origen_datos"].lower().find("sintet") >= 0
