@@ -38,11 +38,11 @@ def test_modelo_entrenado_en_todas_las_categorias():
     modelo, vectorizador, metricas = cargar_modelo()
     assert set(modelo.classes_) == set(CATEGORIAS)
     assert len(vectorizador.transformer_list) == 2
-    assert metricas["version"] == 2
-    assert metricas["datos"] == 800
-    assert metricas["entrenamiento"] == 560
-    assert metricas["validacion"] == 120
-    assert metricas["prueba"] == 120
+    assert metricas["version"] == 3
+    assert metricas["datos"] == 2400
+    assert metricas["entrenamiento"] == 1680
+    assert metricas["validacion"] == 360
+    assert metricas["prueba"] == 360
 
 
 def test_predicciones_o_abstencion_segun_catalogo():
