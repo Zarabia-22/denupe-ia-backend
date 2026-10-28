@@ -1,84 +1,82 @@
-# DenuPe — Backend de IA (FastAPI)
+# DenuPe — Backend de clasificación de denuncias (IA v2)
 
-Microservicio independiente de la aplicación Flutter [DenuPe](https://github.com/Zarabia-22/denupe). Implementa la sugerencia de categorías a partir de **título + descripción** mediante el **modelo entrenado por el usuario en Google Colab**: `TfidfVectorizer(lowercase=True, ngram_range=(1,2))` y `DecisionTreeClassifier(max_depth=10, random_state=42)`.
+Microservicio [FastAPI](https://fastapi.tiangolo.com/) para la aplicación móvil [DenuPe](https://github.com/Zarabia-22/denupe).
+Sugiere una categoría a partir del **título y la descripción**. El usuario siempre puede elegir manualmente.
 
-**Clases originales del modelo:** Alumbrado, Limpieza, Ruido y Seguridad. Entrenado con 200 denuncias simuladas: 140 para entrenamiento y 60 para evaluación. El notebook registró un **83,33 %** de exactitud en las muestras simuladas. Esto no garantiza esa precisión en denuncias reales.
+## Catálogo de ocho categorías
 
-### Categorías oficiales de DenuPe
+| Código | Categoría |
+|---|---|
+| `alumbrado` | Alumbrado público |
+| `seguridad` | Seguridad ciudadana |
+| `limpieza` | Limpieza y residuos |
+| `agua` | Agua y saneamiento |
+| `transito` | Tránsito y transporte |
+| `areas_verdes` | Parques y áreas verdes |
+| `infraestructura` | Vialidad e infraestructura |
+| `otros` | Otros |
 
-El servicio devuelve nombres compatibles con el catálogo de la aplicación:
-- Alumbrado público (`alumbrado`)
-- Seguridad ciudadana (`seguridad`)
-- Limpieza y residuos (`limpieza`)
-- Agua y saneamiento (`agua`)
-- Tránsito y transporte (`transito`)
-- Parques y áreas verdes (`areas_verdes`)
-- Vialidad e infraestructura (`infraestructura`)
-- Otros (`otros`)
+Los nombres coinciden con las categorías del SQL de la aplicación. **Ruido** pertenece a `Otros`, pues no existe como categoría independiente.
 
-El árbol preentrenado **solo conoce las cuatro clases originales**. Las clases Alumbrado, Limpieza y Seguridad se traducen a sus nombres oficiales; Ruido se traduce a Otros, porque DenuPe no tiene una categoría específica de ruido. Las categorías Agua, Tránsito, Parques e Infraestructura se detectan mediante **reglas textuales explícitas**, no mediante entrenamiento nuevo. Si hay indicios de varias de estas categorías, no se aplica una regla; el clasificador original puede sugerir una clase existente. Se recomienda reentrenar con ejemplos representativos de las ocho categorías antes de afirmar clasificación ML completa.
+## Datos y tratamiento de texto
 
-En respuestas basadas en reglas, `confianza_modelo` es `null` y `cobertura_vocabulario` es `0.0` (no se utiliza para tomar esa decisión).
+- `data/denuncias_simuladas_800.csv`: **800 denuncias ficticias**, exactamente 100 por categoría, con título, descripción, etiqueta y procedencia.
+- Se escribieron 20 situaciones base por categoría, cada una con cinco variantes de formulación. Todos son casos inventados; **no son denuncias recogidas de ciudadanos**.
+- `app/text_processing.py`: normaliza Unicode, tildes, mayúsculas, espacios, signos, números, correos y enlaces. El procesamiento ocurre en memoria.
+- `training/train.py`: separa **grupos completos** de variantes: 560 ejemplos de entrenamiento, 120 de validación y 120 de prueba. Las cinco variantes de una situación nunca aparecen en particiones diferentes.
+- Características: TF-IDF de palabras (1-2 palabras) y caracteres (3-5 caracteres) + regresión logística multiclase (`scikit-learn`). No hay reglas de palabras clave que asignen categorías: **las ocho clases se aprenden del conjunto de entrenamiento**.
+- El umbral de aceptación se selecciona usando solamente validación. En predicción, si el texto no ofrece suficiente vocabulario reconocido, el máximo puntaje es bajo o hay poco margen frente a la segunda categoría, la API **se abstiene** y permite selección manual.
 
-## Ejecutar localmente (Python 3.11)
+### Reproducir el entrenamiento
 
-```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
+Requiere Python 3.11:
+
+```bash
+python -m venv .venv
+# Activar .venv según el sistema operativo
 pip install -r requirements-dev.txt
-uvicorn app.main:app --reload
-```
-
-El modelo y su vectorizador están incluidos en `models/*.joblib.gz` (comprimidos sin cambiar el contenido de sus objetos originales); no necesitas Colab para ejecutar el servidor.
-
-- Swagger: http://127.0.0.1:8000/docs
-- Estado: http://127.0.0.1:8000/health
-- Predicción: `POST /api/ia/sugerir-categoria`
-
-Ejemplo de solicitud:
-
-```json
-{"titulo":"Basura acumulada en mi calle","descripcion":"Hay bolsas de basura y residuos que no han sido recogidos durante varios dias"}
-```
-
-Ejemplo de respuesta (valores numéricos ilustrativos):
-
-```json
-{"sugerida":true,"categoria":"Limpieza y residuos","confianza_modelo":1.0,"cobertura_vocabulario":0.625,"motivo":null}
-```
-
-Si el texto es poco informativo se devuelve `sugerida:false`, `categoria:null` y un `motivo`; el usuario debe conservar la opción manual. `confianza_modelo` es el resultado no calibrado de `predict_proba`, **no** un porcentaje de certeza real.
-
-## Pruebas
-
-```powershell
+python -m training.train
 python -m pytest -q
 ```
 
-GitHub Actions ejecuta estas pruebas después de cada push.
+El entrenamiento reemplaza `models/modelo_categorias.joblib.gz`, `models/vectorizador_tfidf.joblib.gz` y `models/metricas.json`.
+El flujo de GitHub Actions **Entrenar modelo de 8 categorías** lo ejecuta de forma reproducible al cambiar los datos o el entrenamiento, verifica las pruebas y versiona los artefactos generados en la rama de desarrollo.
 
-## Flutter
+**Importante:** la exactitud y F1 registradas en `models/metricas.json` corresponden a **casos sintéticos**. Al compartir situaciones base, las variantes siguen siendo similares aunque se evite su fuga entre entrenamiento y prueba; por ello **no representan el rendimiento en denuncias reales**. Antes de producción se requieren casos reales etiquetados, una evaluación externa, revisión de sesgos y recalibración del umbral. La probabilidad de la regresión logística no debe interpretarse como certeza calibrada.
 
-La rama de integración es [feature/integracion-ia-categoria-logica](https://github.com/Zarabia-22/denupe/tree/feature/integracion-ia-categoria-logica). Su botón «Sugerir categoría con IA» realiza la llamada real y permite elegir manualmente si el servicio está desconectado.
+## API
 
-En el archivo `.env` de Flutter, configura:
-
-```env
-DENUPE_IA_URL=https://TU-URL-EN-RENDER.onrender.com
+```bash
+uvicorn app.main:app --reload
 ```
 
-Para emulador Android local: `http://10.0.2.2:8000` (solo permitido en debug). La API responde con el nombre de la categoría; Flutter lo relaciona con las categorías reales de la base de datos, sin seleccionar arbitrariamente una cuando no hay correspondencia única.
+- `GET /health`: estado de salud y versión del clasificador.
+- `GET /docs`: documentación interactiva Swagger.
+- `POST /api/ia/sugerir-categoria`: recibe `titulo` (5-100 caracteres) y `descripcion` (10-500 caracteres).
+- La respuesta mantiene el contrato de Flutter: `sugerida`, `categoria`, `confianza_modelo`, `cobertura_vocabulario` y `motivo`.
+
+Ejemplo:
+
+```json
+{"titulo": "Baches en la pista principal", "descripcion": "El pavimento está dañado y hay varios huecos en la calzada."}
+```
+
+```json
+{"sugerida": true, "categoria": "Vialidad e infraestructura", "confianza_modelo": 0.86, "cobertura_vocabulario": 0.78, "motivo": null}
+```
+
+**Los valores numéricos del ejemplo son ilustrativos.** También puede devolver `sugerida: false`, `categoria: null` y un motivo. Nunca asigna la categoría al ciudadano automáticamente.
+
+## Integración Flutter
+
+El cliente está en `lib/services/ai_category_service.dart` del repositorio principal, con el botón en `lib/screens/new_complaint_screen.dart`.
+La URL se configura mediante `DENUPE_IA_URL` y la app relaciona el nombre devuelto con el catálogo real del backend de datos. Flutter cuenta con selección manual ante rechazo o falta de conexión.
 
 ## Despliegue
 
-Incluye `Dockerfile` y `render.yaml`. En Render, crea un servicio Web con **runtime Docker**, rama `main`, instancia gratuita de pruebas y chequeo de salud `/health`. Render asignará una URL HTTPS pública al completar el despliegue.
+Se proporciona `Dockerfile` y `render.yaml` para Render (ruta de health-check `/health`). Una configuración no garantiza que un despliegue esté activo.
+El contenedor solo carga artefactos de **ocho clases v2**, y fallará explícitamente si detecta artefactos antiguos. El servicio no accede a la base de datos ni presenta denuncias: solo sugiere categorías.
 
-El repositorio por sí solo no publica el servidor. El microservicio no usa la base de datos ni envía denuncias: **únicamente sugiere una categoría**.
+## Seguridad y limitaciones
 
-### Seguridad y límites
-
-- Es un **prototipo**: el endpoint no exige autenticación; antes de un lanzamiento público conviene validar tokens de usuario y aplicar rate limiting en la infraestructura.
-- Las solicitudes contienen texto escrito por ciudadanos. La aplicación no registra deliberadamente su contenido. No introduzcas datos sensibles en pruebas públicas.
-- `joblib` puede ejecutar código al deserializar; los artefactos solo deben proceder del repositorio controlado.
-- La cobertura de vocabulario y el umbral de 0.75 son filtros heurísticos. No representan garantías sobre exactitud real.
-- En Flutter usa siempre HTTPS en producción, y prueba las equivalencias de nombres frente a las categorías de la base de datos.
+Este es un prototipo académico. El endpoint no tiene autenticación ni limitación de tasa; hay que establecer controles de acceso y antiabuso antes de exposición pública. Las cargas incluyen texto redactado por ciudadanos: no se registra deliberadamente su contenido ni debe usarse información personal en pruebas públicas. Deserializar `joblib` puede ejecutar código, por lo que solo se deben cargar artefactos del repositorio de confianza. Usar HTTPS y verificar los mapeos de categorías de la base de datos.
