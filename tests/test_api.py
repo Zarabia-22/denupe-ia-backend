@@ -19,7 +19,7 @@ def test_basura():
     assert result.status_code == 200
     data = result.json()
     assert data["sugerida"] is True
-    assert data["categoria"] == "Limpieza"
+    assert data["categoria"] == "Limpieza y residuos"
     assert 0 <= data["confianza_modelo"] <= 1
 
 
@@ -50,3 +50,31 @@ def test_no_extra_fields():
             "dni": "12345678",
         })
     assert result.status_code == 422
+
+
+def test_catalogo_oficial_completo():
+    from app.categorias import CATEGORIAS
+    assert len(CATEGORIAS) == 8
+    assert set(CATEGORIAS) == {
+        "alumbrado", "seguridad", "limpieza", "agua",
+        "transito", "areas_verdes", "infraestructura", "otros"
+    }
+
+
+def test_categorias_nuevas_sin_reentrenar():
+    casos = [
+        ("Fuga de agua potable", "Hay una fuga de agua en la tuberia de la avenida", "Agua y saneamiento"),
+        ("Semaforo malogrado", "El semaforo no funciona en el cruce peatonal", "Tránsito y transporte"),
+        ("Arbol caido en parque", "Un arbol caido bloquea los juegos infantiles", "Parques y áreas verdes"),
+        ("Baches en la avenida", "Hay baches y veredas rotas en la via publica", "Vialidad e infraestructura"),
+    ]
+    with TestClient(app) as client:
+        for titulo, descripcion, esperado in casos:
+            response = client.post("/api/ia/sugerir-categoria", json={
+                "titulo": titulo, "descripcion": descripcion
+            })
+            assert response.status_code == 200
+            result = response.json()
+            assert result["sugerida"] is True
+            assert result["categoria"] == esperado
+            assert result["confianza_modelo"] is None
