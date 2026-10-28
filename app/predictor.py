@@ -5,12 +5,15 @@ Los modelos comprimidos proceden del notebook de la sesión 9 y se cargan sólo
 desde archivos controlados del repositorio.
 """
 from functools import lru_cache
+import re
+import unicodedata
 from pathlib import Path
 import gzip
 
 import joblib
 
 from .schemas import SugerenciaSalida
+from .categorias import CATEGORIAS, ETIQUETAS_MODELO, PATRONES_ADICIONALES
 
 MODELS = Path(__file__).resolve().parent.parent / "models"
 
@@ -33,9 +36,35 @@ def cargar_modelo():
     return modelo, vectorizador
 
 
+def _normalizar(texto: str) -> str:
+    texto = unicodedata.normalize("NFKD", texto.lower())
+    texto = "".join(c for c in texto if not unicodedata.combining(c))
+    return re.sub(r"\s+", " ", texto).strip()
+
+
+def _categoria_explicita(texto: str) -> str | None:
+    """Reglas para categorías nuevas: abstenerse si hay varias coincidencias."""
+    normalizado = f" {_normalizar(texto)} "
+    coincidencias = [
+        codigo
+        for codigo, patrones in PATRONES_ADICIONALES.items()
+        if any(f" {_normalizar(patron)} " in normalizado for patron in patrones)
+    ]
+    return CATEGORIAS[coincidencias[0]] if len(coincidencias) == 1 else None
+
+
 def sugerir_categoria(titulo: str, descripcion: str) -> SugerenciaSalida:
     modelo, vectorizador = cargar_modelo()
     texto = f"{titulo.strip()} {descripcion.strip()}"
+    categoria_explicita = _categoria_explicita(texto)
+    if categoria_explicita is not None:
+        return SugerenciaSalida(
+            sugerida=True,
+            categoria=categoria_explicita,
+            confianza_modelo=None,  # Regla explícita, no predicción del árbol.
+            cobertura_vocabulario=0.0,  # No interviene en esta decisión.
+            motivo=None,
+        )
     matriz = vectorizador.transform([texto])
 
     # Emplear el mismo tokenizador/preprocesador que el vectorizador entrenado.
@@ -69,9 +98,19 @@ def sugerir_categoria(titulo: str, descripcion: str) -> SugerenciaSalida:
             motivo="La predicción es ambigua. Selecciona una categoría manualmente.",
         )
 
+    etiqueta_oficial = ETIQUETAS_MODELO.get(categoria)
+    if etiqueta_oficial is None:
+        return SugerenciaSalida(
+            sugerida=False,
+            categoria=None,
+            confianza_modelo=round(prob, 4),
+            cobertura_vocabulario=round(cobertura, 4),
+            motivo="El modelo devolvió una categoría fuera del catálogo.",
+        )
+
     return SugerenciaSalida(
         sugerida=True,
-        categoria=categoria,
+        categoria=etiqueta_oficial,
         confianza_modelo=round(prob, 4),
         cobertura_vocabulario=round(cobertura, 4),
         motivo=None,
