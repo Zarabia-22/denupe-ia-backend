@@ -1,7 +1,7 @@
 {
-  "version": 2,
-  "origen_datos": "800 denuncias simuladas, NO denuncias ciudadanas reales",
-  "datos": 800,
+  "version": 3,
+  "origen_datos": "2400 denuncias sinteticas, no casos ciudadanos reales",
+  "datos": 2400,
   "categorias": {
     "alumbrado": "Alumbrado público",
     "seguridad": "Seguridad ciudadana",
@@ -13,100 +13,128 @@
     "otros": "Otros"
   },
   "distribucion": {
-    "alumbrado": 100,
-    "seguridad": 100,
-    "limpieza": 100,
-    "agua": 100,
-    "transito": 100,
-    "areas_verdes": 100,
-    "infraestructura": 100,
-    "otros": 100
+    "alumbrado": 300,
+    "seguridad": 300,
+    "limpieza": 300,
+    "agua": 300,
+    "transito": 300,
+    "areas_verdes": 300,
+    "infraestructura": 300,
+    "otros": 300
   },
-  "metodologia": "Separación por grupo de 5 paráfrasis del mismo caso; sin grupos compartidos entre particiones.",
+  "metodologia": "60 incidentes por clase, 5 variantes por incidente. Particiones separadas por incidente y estratificadas por categoria. Seleccion de modelo y umbral solo con validacion; test reservado.",
   "semilla": 2026,
-  "entrenamiento": 560,
-  "validacion": 120,
-  "prueba": 120,
-  "modelo": "TF-IDF palabras 1-2 + caracteres 3-5 + LogisticRegression",
-  "umbral_confianza": 0.4,
+  "entrenamiento": 1680,
+  "validacion": 360,
+  "prueba": 360,
+  "modelo": "TF-IDF palabras 1-2 + caracteres 3-5 + logistica_C15",
+  "seleccion_modelo": "logistica_C15",
+  "comparacion_validacion": [
+    {
+      "modelo": "logistica_C1",
+      "accuracy_validacion": 0.9861,
+      "f1_macro_validacion": 0.9861
+    },
+    {
+      "modelo": "logistica_C5",
+      "accuracy_validacion": 0.9833,
+      "f1_macro_validacion": 0.9833
+    },
+    {
+      "modelo": "logistica_C15",
+      "accuracy_validacion": 0.9889,
+      "f1_macro_validacion": 0.9889
+    },
+    {
+      "modelo": "naive_bayes_025",
+      "accuracy_validacion": 0.9639,
+      "f1_macro_validacion": 0.9639
+    },
+    {
+      "modelo": "naive_bayes_complemento",
+      "accuracy_validacion": 0.9667,
+      "f1_macro_validacion": 0.9674
+    }
+  ],
+  "umbral_confianza": 0.25,
   "margen_minimo": 0.1,
   "cobertura_minima": 0.25,
   "terminos_minimos": 2,
-  "accuracy_prueba_simulada": 0.725,
-  "f1_macro_prueba_simulada": 0.716,
+  "accuracy_prueba_simulada": 0.9667,
+  "f1_macro_prueba_simulada": 0.9666,
   "evaluacion_validacion": {
-    "sugeridas": 57,
-    "total": 120,
-    "cobertura_sugerencias": 0.475,
+    "sugeridas": 347,
+    "total": 360,
+    "cobertura_sugerencias": 0.9639,
     "precision_sugerencias": 1.0
   },
   "evaluacion_prueba": {
-    "sugeridas": 20,
-    "total": 120,
-    "cobertura_sugerencias": 0.1667,
-    "precision_sugerencias": 0.95
+    "sugeridas": 343,
+    "total": 360,
+    "cobertura_sugerencias": 0.9528,
+    "precision_sugerencias": 0.9913
   },
   "reporte_por_categoria": {
     "alumbrado": {
-      "precision": 0.7272727272727273,
-      "recall": 0.5333333333333333,
-      "f1-score": 0.6153846153846154,
-      "support": 15.0
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 45.0
     },
     "seguridad": {
       "precision": 1.0,
-      "recall": 0.6,
-      "f1-score": 0.75,
-      "support": 15.0
+      "recall": 0.8888888888888888,
+      "f1-score": 0.9411764705882353,
+      "support": 45.0
     },
     "limpieza": {
-      "precision": 1.0,
-      "recall": 0.4666666666666667,
-      "f1-score": 0.6363636363636364,
-      "support": 15.0
+      "precision": 0.8958333333333334,
+      "recall": 0.9555555555555556,
+      "f1-score": 0.9247311827956989,
+      "support": 45.0
     },
     "agua": {
-      "precision": 1.0,
-      "recall": 0.4666666666666667,
-      "f1-score": 0.6363636363636364,
-      "support": 15.0
+      "precision": 0.9,
+      "recall": 1.0,
+      "f1-score": 0.9473684210526315,
+      "support": 45.0
     },
     "transito": {
-      "precision": 0.5172413793103449,
+      "precision": 1.0,
       "recall": 1.0,
-      "f1-score": 0.6818181818181818,
-      "support": 15.0
+      "f1-score": 1.0,
+      "support": 45.0
     },
     "areas_verdes": {
-      "precision": 0.6521739130434783,
+      "precision": 1.0,
       "recall": 1.0,
-      "f1-score": 0.7894736842105263,
-      "support": 15.0
+      "f1-score": 1.0,
+      "support": 45.0
     },
     "infraestructura": {
-      "precision": 0.6875,
-      "recall": 0.7333333333333333,
-      "f1-score": 0.7096774193548387,
-      "support": 15.0
+      "precision": 1.0,
+      "recall": 0.8888888888888888,
+      "f1-score": 0.9411764705882353,
+      "support": 45.0
     },
     "otros": {
-      "precision": 0.8333333333333334,
+      "precision": 0.9574468085106383,
       "recall": 1.0,
-      "f1-score": 0.9090909090909091,
-      "support": 15.0
+      "f1-score": 0.9782608695652174,
+      "support": 45.0
     },
-    "accuracy": 0.725,
+    "accuracy": 0.9666666666666667,
     "macro avg": {
-      "precision": 0.8021901691199855,
-      "recall": 0.725,
-      "f1-score": 0.716021510323293,
-      "support": 120.0
+      "precision": 0.9691600177304964,
+      "recall": 0.9666666666666667,
+      "f1-score": 0.9665891768237522,
+      "support": 360.0
     },
     "weighted avg": {
-      "precision": 0.8021901691199854,
-      "recall": 0.725,
-      "f1-score": 0.716021510323293,
-      "support": 120.0
+      "precision": 0.9691600177304964,
+      "recall": 0.9666666666666667,
+      "f1-score": 0.9665891768237522,
+      "support": 360.0
     }
   },
   "matriz_confusion": {
@@ -122,73 +150,73 @@
     ],
     "valores": [
       [
-        8,
+        45,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        40,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        43,
+        0,
+        0,
+        0,
+        0,
+        2
+      ],
+      [
+        0,
+        0,
+        0,
+        45,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        45,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        45,
+        0,
+        0
+      ],
+      [
         0,
         0,
         0,
         5,
-        2,
-        0,
-        0
-      ],
-      [
-        0,
-        9,
         0,
         0,
-        5,
-        1,
-        0,
-        0
-      ],
-      [
-        3,
-        0,
-        7,
-        0,
-        0,
-        0,
-        5,
-        0
-      ],
-      [
-        0,
-        0,
-        0,
-        7,
-        0,
-        5,
-        0,
-        3
-      ],
-      [
-        0,
-        0,
-        0,
-        0,
-        15,
-        0,
-        0,
-        0
-      ],
-      [
-        0,
-        0,
-        0,
-        0,
-        0,
-        15,
-        0,
-        0
-      ],
-      [
-        0,
-        0,
-        0,
-        0,
-        4,
-        0,
-        11,
+        40,
         0
       ],
       [
@@ -199,9 +227,9 @@
         0,
         0,
         0,
-        15
+        45
       ]
     ]
   },
-  "advertencia": "Las métricas describen solamente textos artificiales. El puntaje de predict_proba no es confianza calibrada ni garantiza exactitud real."
+  "advertencia": "Los ejemplos se generaron artificialmente mediante plantillas y pueden compartir vocabulario entre distintos incidentes. No equivale a precision con denuncias reales. Las probabilidades son puntuaciones no calibradas."
 }
