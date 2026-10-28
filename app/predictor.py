@@ -1,78 +1,74 @@
-"""Clasificador original de Colab: TF-IDF + DecisionTreeClassifier.
+"""Predicción de ocho categorías oficiales con rechazo de textos ambiguos.
 
-Los valores predict_proba son proporciones de hojas, NO confianza calibrada.
-Los modelos comprimidos proceden del notebook de la sesión 9 y se cargan sólo
-desde archivos controlados del repositorio.
+Clasificador entrenado: TF-IDF (palabras y caracteres) + regresión logística.
+No usa reglas de clasificación. El valor predict_proba no está calibrado.
 """
 from functools import lru_cache
+import json
 from pathlib import Path
-import gzip
 
 import joblib
+import numpy as np
 
+from .categorias import CATEGORIAS
 from .schemas import SugerenciaSalida
+from .text_processing import cobertura_vocabulario, normalizar_texto
 
 MODELS = Path(__file__).resolve().parent.parent / "models"
-
-# Evita clasificar a partir de palabras genéricas o sólo referencias espaciales.
-PALABRAS_COMUNES = frozenset("""
-a al algo ante bajo cerca con contra cual cuando de del desde donde durante el ella en entre era es
-esta estan este esto estos fue ha hay la las le les lo los mas me mi mis mucho muy ni no nos
-nuestro o para pero por que se ser si sin sobre su sus te tiene toda todo todos un una unas uno unos
-vecino vecinos vivienda casas casa calle avenida parque mercado colegio barrio zona urbanizacion distrito
-esquina frente principal problema reporto reportan sucede hace dias dia varios varias aqui alli
-""".split())
 
 
 @lru_cache(maxsize=1)
 def cargar_modelo():
-    with gzip.open(MODELS / "modelo_categorias.joblib.gz", "rb") as file:
-        modelo = joblib.load(file)
-    with gzip.open(MODELS / "vectorizador_tfidf.joblib.gz", "rb") as file:
-        vectorizador = joblib.load(file)
-    return modelo, vectorizador
+    """Carga artefactos versionados y evita servir accidentalmente el modelo viejo."""
+    with (MODELS / "metricas.json").open(encoding="utf-8") as f:
+        metricas = json.load(f)
+    if metricas.get("version") != 3:
+        raise RuntimeError("Falta entrenar el modelo de ocho categorías (version 3)")
+    modelo = joblib.load(MODELS / "modelo_categorias.joblib.gz")
+    vectorizador = joblib.load(MODELS / "vectorizador_tfidf.joblib.gz")
+    if set(modelo.classes_) != set(CATEGORIAS):
+        raise RuntimeError("El modelo no coincide con las ocho categorías de DenuPe")
+    return modelo, vectorizador, metricas
 
 
 def sugerir_categoria(titulo: str, descripcion: str) -> SugerenciaSalida:
-    modelo, vectorizador = cargar_modelo()
-    texto = f"{titulo.strip()} {descripcion.strip()}"
-    matriz = vectorizador.transform([texto])
-
-    # Emplear el mismo tokenizador/preprocesador que el vectorizador entrenado.
-    tokens = vectorizador.build_tokenizer()(
-        vectorizador.build_preprocessor()(texto)
-    )
-    significativos = [t for t in tokens if t not in PALABRAS_COMUNES and len(t) > 2]
-    reconocidos = [t for t in significativos if t in vectorizador.vocabulary_]
-    cobertura = len(reconocidos) / len(significativos) if significativos else 0.0
-
-    if matriz.nnz == 0 or len(reconocidos) < 2 or cobertura < 0.25:
+    modelo, vectorizador, metricas = cargar_modelo()
+    texto = titulo.strip() + ". " + descripcion.strip()
+    texto_normalizado = normalizar_texto(texto)
+    cobertura, reconocidos, _ = cobertura_vocabulario(texto_normalizado, vectorizador)
+    if (
+        not texto_normalizado
+        or reconocidos < int(metricas["terminos_minimos"])
+        or cobertura < float(metricas["cobertura_minima"])
+    ):
         return SugerenciaSalida(
-            sugerida=False,
-            categoria=None,
-            confianza_modelo=None,
+            sugerida=False, categoria=None, confianza_modelo=None,
             cobertura_vocabulario=round(cobertura, 4),
-            motivo="No hay suficientes términos reconocidos para sugerir una categoría con fiabilidad.",
+            motivo="No se reconocen suficientes términos relevantes. Elige la categoría manualmente.",
         )
 
-    categoria = str(modelo.predict(matriz)[0])
-    clases = list(modelo.classes_)
-    prob = float(modelo.predict_proba(matriz)[0][clases.index(categoria)])
-
-    # Umbral heurístico, no validado en denuncias reales.
-    if prob < 0.75:
+    matriz = vectorizador.transform([texto_normalizado])
+    probabilidades = modelo.predict_proba(matriz)[0]
+    indices = np.argsort(probabilidades)
+    posicion = int(indices[-1])
+    puntaje = float(probabilidades[posicion])
+    margen = float(probabilidades[posicion] - probabilidades[int(indices[-2])])
+    confianza = round(puntaje, 4)
+    if (
+        puntaje < float(metricas["umbral_confianza"])
+        or margen < float(metricas["margen_minimo"])
+    ):
         return SugerenciaSalida(
-            sugerida=False,
-            categoria=None,
-            confianza_modelo=round(prob, 4),
+            sugerida=False, categoria=None, confianza_modelo=confianza,
             cobertura_vocabulario=round(cobertura, 4),
-            motivo="La predicción es ambigua. Selecciona una categoría manualmente.",
+            motivo="La predicción es incierta o ambigua. Selecciona una categoría manualmente.",
         )
 
+    codigo = str(modelo.classes_[posicion])
     return SugerenciaSalida(
         sugerida=True,
-        categoria=categoria,
-        confianza_modelo=round(prob, 4),
+        categoria=CATEGORIAS[codigo],
+        confianza_modelo=confianza,
         cobertura_vocabulario=round(cobertura, 4),
         motivo=None,
     )

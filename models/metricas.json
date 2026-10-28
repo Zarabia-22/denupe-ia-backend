@@ -1,14 +1,235 @@
 {
-  "datos": 200,
-  "entrenamiento": 140,
-  "prueba": 60,
-  "accuracy_prueba_simulada": 0.8333,
-  "f1_macro_prueba_simulada": 0.8326,
-  "categorias": [
-    "Alumbrado",
-    "Limpieza",
-    "Ruido",
-    "Seguridad"
+  "version": 3,
+  "origen_datos": "2400 denuncias sinteticas, no casos ciudadanos reales",
+  "datos": 2400,
+  "categorias": {
+    "alumbrado": "Alumbrado público",
+    "seguridad": "Seguridad ciudadana",
+    "limpieza": "Limpieza y residuos",
+    "agua": "Agua y saneamiento",
+    "transito": "Tránsito y transporte",
+    "areas_verdes": "Parques y áreas verdes",
+    "infraestructura": "Vialidad e infraestructura",
+    "otros": "Otros"
+  },
+  "distribucion": {
+    "alumbrado": 300,
+    "seguridad": 300,
+    "limpieza": 300,
+    "agua": 300,
+    "transito": 300,
+    "areas_verdes": 300,
+    "infraestructura": 300,
+    "otros": 300
+  },
+  "metodologia": "60 incidentes por clase, 5 variantes por incidente. Particiones separadas por incidente y estratificadas por categoria. Seleccion de modelo y umbral solo con validacion; test reservado.",
+  "semilla": 2026,
+  "entrenamiento": 1680,
+  "validacion": 360,
+  "prueba": 360,
+  "modelo": "TF-IDF palabras 1-2 + caracteres 3-5 + logistica_C15",
+  "seleccion_modelo": "logistica_C15",
+  "comparacion_validacion": [
+    {
+      "modelo": "logistica_C1",
+      "accuracy_validacion": 0.9861,
+      "f1_macro_validacion": 0.9861
+    },
+    {
+      "modelo": "logistica_C5",
+      "accuracy_validacion": 0.9833,
+      "f1_macro_validacion": 0.9833
+    },
+    {
+      "modelo": "logistica_C15",
+      "accuracy_validacion": 0.9889,
+      "f1_macro_validacion": 0.9889
+    },
+    {
+      "modelo": "naive_bayes_025",
+      "accuracy_validacion": 0.9639,
+      "f1_macro_validacion": 0.9639
+    },
+    {
+      "modelo": "naive_bayes_complemento",
+      "accuracy_validacion": 0.9667,
+      "f1_macro_validacion": 0.9674
+    }
   ],
-  "nota": "Métricas con textos simulados de un vocabulario restringido, no con denuncias reales."
+  "umbral_confianza": 0.25,
+  "margen_minimo": 0.1,
+  "cobertura_minima": 0.25,
+  "terminos_minimos": 2,
+  "accuracy_prueba_simulada": 0.9667,
+  "f1_macro_prueba_simulada": 0.9666,
+  "evaluacion_validacion": {
+    "sugeridas": 347,
+    "total": 360,
+    "cobertura_sugerencias": 0.9639,
+    "precision_sugerencias": 1.0
+  },
+  "evaluacion_prueba": {
+    "sugeridas": 343,
+    "total": 360,
+    "cobertura_sugerencias": 0.9528,
+    "precision_sugerencias": 0.9913
+  },
+  "reporte_por_categoria": {
+    "alumbrado": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 45.0
+    },
+    "seguridad": {
+      "precision": 1.0,
+      "recall": 0.8888888888888888,
+      "f1-score": 0.9411764705882353,
+      "support": 45.0
+    },
+    "limpieza": {
+      "precision": 0.8958333333333334,
+      "recall": 0.9555555555555556,
+      "f1-score": 0.9247311827956989,
+      "support": 45.0
+    },
+    "agua": {
+      "precision": 0.9,
+      "recall": 1.0,
+      "f1-score": 0.9473684210526315,
+      "support": 45.0
+    },
+    "transito": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 45.0
+    },
+    "areas_verdes": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 45.0
+    },
+    "infraestructura": {
+      "precision": 1.0,
+      "recall": 0.8888888888888888,
+      "f1-score": 0.9411764705882353,
+      "support": 45.0
+    },
+    "otros": {
+      "precision": 0.9574468085106383,
+      "recall": 1.0,
+      "f1-score": 0.9782608695652174,
+      "support": 45.0
+    },
+    "accuracy": 0.9666666666666667,
+    "macro avg": {
+      "precision": 0.9691600177304964,
+      "recall": 0.9666666666666667,
+      "f1-score": 0.9665891768237522,
+      "support": 360.0
+    },
+    "weighted avg": {
+      "precision": 0.9691600177304964,
+      "recall": 0.9666666666666667,
+      "f1-score": 0.9665891768237522,
+      "support": 360.0
+    }
+  },
+  "matriz_confusion": {
+    "orden_categorias": [
+      "alumbrado",
+      "seguridad",
+      "limpieza",
+      "agua",
+      "transito",
+      "areas_verdes",
+      "infraestructura",
+      "otros"
+    ],
+    "valores": [
+      [
+        45,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        40,
+        5,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        43,
+        0,
+        0,
+        0,
+        0,
+        2
+      ],
+      [
+        0,
+        0,
+        0,
+        45,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        45,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        45,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        5,
+        0,
+        0,
+        40,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        45
+      ]
+    ]
+  },
+  "advertencia": "Los ejemplos se generaron artificialmente mediante plantillas y pueden compartir vocabulario entre distintos incidentes. No equivale a precision con denuncias reales. Las probabilidades son puntuaciones no calibradas."
 }

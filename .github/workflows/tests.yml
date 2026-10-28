@@ -12,5 +12,7 @@ jobs:
           python-version: '3.11'
       - name: Instalar dependencias
         run: pip install -r requirements-dev.txt
-      - name: Pruebas automatizadas
+      - name: Comprobar sintaxis del backend y entrenamiento
+        run: python -m compileall -q app training
+      - name: Pruebas automatizadas de API, modelo y datos
         run: python -m pytest -q
