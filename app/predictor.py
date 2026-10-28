@@ -22,8 +22,8 @@ def cargar_modelo():
     """Carga artefactos versionados y evita servir accidentalmente el modelo viejo."""
     with (MODELS / "metricas.json").open(encoding="utf-8") as f:
         metricas = json.load(f)
-    if metricas.get("version") != 2:
-        raise RuntimeError("Falta entrenar el modelo de ocho categorías (version 2)")
+    if metricas.get("version") != 3:
+        raise RuntimeError("Falta entrenar el modelo de ocho categorías (version 3)")
     modelo = joblib.load(MODELS / "modelo_categorias.joblib.gz")
     vectorizador = joblib.load(MODELS / "vectorizador_tfidf.joblib.gz")
     if set(modelo.classes_) != set(CATEGORIAS):
