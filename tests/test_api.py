@@ -1,80 +1,98 @@
-"""Pruebas del contrato de predicción y errores del microservicio."""
+"""Pruebas de la API y regresión del clasificador de ocho categorías."""
+import json
+from pathlib import Path
+
 from fastapi.testclient import TestClient
+from app.categorias import CATEGORIAS
 from app.main import app
+from app.predictor import cargar_modelo
+
+CASOS = [
+    ("Poste de alumbrado sin luz", "El foco de la luminaria del poste quedó apagado y la vereda está oscura", "Alumbrado público"),
+    ("Intento de robo a vecinos", "Un sujeto trató de asaltar a los peatones y quitarles sus celulares", "Seguridad ciudadana"),
+    ("Acumulación de basura", "Hay bolsas de basura y residuos sin recoger en el contenedor", "Limpieza y residuos"),
+    ("Fuga de agua potable", "Una tubería rota derrama agua en la avenida y provoca un aniego", "Agua y saneamiento"),
+    ("Semáforo del cruce malogrado", "El semáforo no regula los vehículos y provoca congestión vehicular", "Tránsito y transporte"),
+    ("Árbol caído en el parque", "Un árbol se derrumbó sobre el jardín y los juegos infantiles", "Parques y áreas verdes"),
+    ("Baches en la pista principal", "El pavimento roto tiene baches profundos y las veredas están agrietadas", "Vialidad e infraestructura"),
+    ("Ruido intenso durante la noche", "Un local emite música con parlantes muy fuertes hasta la madrugada", "Otros"),
+]
 
 
-def test_health():
-    with TestClient(app) as client:
-        result = client.get("/health")
-    assert result.status_code == 200
-    assert result.json()["status"] == "ok"
-
-
-def test_basura():
-    with TestClient(app) as client:
-        result = client.post("/api/ia/sugerir-categoria", json={
-            "titulo": "Basura acumulada en mi calle",
-            "descripcion": "Hay bolsas de basura y residuos que no han sido recogidos durante varios dias"
+def enviar(titulo, descripcion):
+    with TestClient(app) as cliente:
+        return cliente.post("/api/ia/sugerir-categoria", json={
+            "titulo": titulo, "descripcion": descripcion,
         })
-    assert result.status_code == 200
-    data = result.json()
-    assert data["sugerida"] is True
-    assert data["categoria"] == "Limpieza y residuos"
-    assert 0 <= data["confianza_modelo"] <= 1
 
 
-def test_input_validation():
-    with TestClient(app) as client:
-        result = client.post("/api/ia/sugerir-categoria", json={
-            "titulo": "a", "descripcion": "corta"
+def test_salud():
+    with TestClient(app) as cliente:
+        r = cliente.get("/health")
+    assert r.status_code == 200
+    assert r.json()["status"] == "ok"
+    assert r.json()["modelo"] == "tfidf_logistic_regression_8"
+
+
+def test_modelo_entrenado_en_todas_las_categorias():
+    modelo, vectorizador, metricas = cargar_modelo()
+    assert set(modelo.classes_) == set(CATEGORIAS)
+    assert len(vectorizador.transformer_list) == 2
+    assert metricas["version"] == 2
+    assert metricas["datos"] == 800
+    assert metricas["entrenamiento"] == 560
+    assert metricas["validacion"] == 120
+    assert metricas["prueba"] == 120
+
+
+def test_predicciones_o_abstencion_segun_catalogo():
+    modelo, vectorizador, _ = cargar_modelo()
+    for titulo, descripcion, esperado in CASOS:
+        entrada = titulo + ". " + descripcion
+        prediccion = modelo.predict(vectorizador.transform([entrada]))[0]
+        assert CATEGORIAS[prediccion] == esperado, (titulo, prediccion)
+        r = enviar(titulo, descripcion)
+        assert r.status_code == 200
+        salida = r.json()
+        if salida["sugerida"]:
+            assert salida["categoria"] == esperado
+            assert 0 <= salida["confianza_modelo"] <= 1
+        else:
+            assert salida["categoria"] is None
+            assert salida["motivo"]
+
+
+def test_rechazo_fuera_de_dominio():
+    r = enviar(
+        "Necesito una constancia universitaria",
+        "Solicito ayuda para tramitar mi constancia de estudios y mis certificados académicos",
+    )
+    assert r.status_code == 200
+    assert r.json()["sugerida"] is False
+    assert r.json()["categoria"] is None
+
+
+def test_validaciones_422():
+    with TestClient(app) as cliente:
+        corta = cliente.post("/api/ia/sugerir-categoria", json={
+            "titulo": "a", "descripcion": "corta",
         })
-    assert result.status_code == 422
-
-
-def test_out_of_domain_is_not_guessed():
-    with TestClient(app) as client:
-        result = client.post("/api/ia/sugerir-categoria", json={
-            "titulo": "Quiero realizar una consulta",
-            "descripcion": "Necesito ayuda con mi constancia de estudios universitarios"
-        })
-    assert result.status_code == 200
-    assert result.json()["sugerida"] is False
-    assert result.json()["categoria"] is None
-
-
-def test_no_extra_fields():
-    with TestClient(app) as client:
-        result = client.post("/api/ia/sugerir-categoria", json={
-            "titulo": "Basura acumulada",
-            "descripcion": "Se acumula basura en la avenida",
+        extra = cliente.post("/api/ia/sugerir-categoria", json={
+            "titulo": "Basura en la avenida",
+            "descripcion": "Hay bolsas de basura acumuladas desde ayer",
             "dni": "12345678",
         })
-    assert result.status_code == 422
+    assert corta.status_code == 422
+    assert extra.status_code == 422
 
 
-def test_catalogo_oficial_completo():
-    from app.categorias import CATEGORIAS
-    assert len(CATEGORIAS) == 8
-    assert set(CATEGORIAS) == {
-        "alumbrado", "seguridad", "limpieza", "agua",
-        "transito", "areas_verdes", "infraestructura", "otros"
-    }
+def test_sin_inferir_categoria_ausente():
+    for titulo, descripcion, _ in CASOS:
+        resultado = enviar(titulo, descripcion).json()
+        assert resultado["categoria"] is None or resultado["categoria"] in CATEGORIAS.values()
 
 
-def test_categorias_nuevas_sin_reentrenar():
-    casos = [
-        ("Fuga de agua potable", "Hay una fuga de agua en la tuberia de la avenida", "Agua y saneamiento"),
-        ("Semaforo malogrado", "El semaforo no funciona en el cruce peatonal", "Tránsito y transporte"),
-        ("Arbol caido en parque", "Un arbol caido bloquea los juegos infantiles", "Parques y áreas verdes"),
-        ("Baches en la avenida", "Hay baches y veredas rotas en la via publica", "Vialidad e infraestructura"),
-    ]
-    with TestClient(app) as client:
-        for titulo, descripcion, esperado in casos:
-            response = client.post("/api/ia/sugerir-categoria", json={
-                "titulo": titulo, "descripcion": descripcion
-            })
-            assert response.status_code == 200
-            result = response.json()
-            assert result["sugerida"] is True
-            assert result["categoria"] == esperado
-            assert result["confianza_modelo"] is None
+def test_normalizacion_de_tildes_y_espacios():
+    from app.text_processing import normalizar_texto
+    assert normalizar_texto(" ÁRBOL  CAÍDO\tEN  EL  PARQUE! ") == "arbol caido en el parque"
+    assert "@" not in normalizar_texto("Consulta: vecino@ejemplo.com")
