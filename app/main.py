@@ -18,8 +18,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="DenuPe · Servicio de IA",
-    description="Sugiere categorías mediante TF-IDF y árbol de decisión. La elección definitiva corresponde al ciudadano.",
-    version="1.0.0",
+    description="Sugiere categorías mediante TF-IDF y aprendizaje automático multiclase; la elección final corresponde al ciudadano.",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -36,7 +36,7 @@ if origins:
 
 @app.get("/health", tags=["Salud"])
 def health():
-    return {"status": "ok", "modelo": "decision_tree_tfidf"}
+    return {"status": "ok", "modelo": "tfidf_logistic_regression_8"}
 
 
 @app.post(
