@@ -24,6 +24,8 @@ class EntidadEntrada(BaseModel):
     distrito: str = Field(min_length=2, max_length=80)
     titulo: str = Field(min_length=5, max_length=100)
     descripcion: str = Field(min_length=10, max_length=500)
+    latitud: float | None = Field(default=None, ge=-90, le=90)
+    longitud: float | None = Field(default=None, ge=-180, le=180)
 
 
 class EntidadPublica(BaseModel):
