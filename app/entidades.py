@@ -60,7 +60,7 @@ def sugerir_entidad(entrada: EntidadEntrada) -> EntidadSalida:
             or normalizar(entidad["departamento"]) != departamento
         ):
             continue
-        categorias = {normalizar(c) for c in entidad["categorias"]}
+        categorias = {normalizar(c) for c in entidad.get("categorias_habilitadas", entidad["categorias"])}
         if categoria not in categorias:
             continue
         palabras = {normalizar(p) for p in entidad["palabras_clave"]}
