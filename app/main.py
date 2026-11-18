@@ -1,4 +1,4 @@
-"""API HTTP para recomendaciones de categoría de DenuPe."""
+"""API HTTP para recomendaciones de categoría y entidad pública de DenuPe."""
 from contextlib import asynccontextmanager
 import os
 
@@ -6,20 +6,21 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .predictor import cargar_modelo, sugerir_categoria
-from .schemas import DenunciaEntrada, SugerenciaSalida
+from .entidades import sugerir_entidad
+from .schemas import DenunciaEntrada, SugerenciaSalida, EntidadEntrada, EntidadSalida
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Fallar en el arranque si faltan los artefactos.
+    # Fallar en el arranque si faltan los artefactos del clasificador actual.
     cargar_modelo()
     yield
 
 
 app = FastAPI(
     title="DenuPe · Servicio de IA",
-    description="Sugiere categorías mediante TF-IDF y aprendizaje automático multiclase; la elección final corresponde al ciudadano.",
-    version="2.0.0",
+    description="Sugiere categorías y entidades públicas responsables a partir de denuncias ciudadanas.",
+    version="2.1.0",
     lifespan=lifespan,
 )
 
@@ -46,3 +47,13 @@ def health():
 )
 def predecir(denuncia: DenunciaEntrada) -> SugerenciaSalida:
     return sugerir_categoria(denuncia.titulo, denuncia.descripcion)
+
+
+@app.post(
+    "/api/ia/sugerir-entidad",
+    response_model=EntidadSalida,
+    tags=["Derivación inteligente"],
+)
+def predecir_entidad(denuncia: EntidadEntrada) -> EntidadSalida:
+    """Recomienda una entidad solo si existe coincidencia territorial verificable."""
+    return sugerir_entidad(denuncia)
