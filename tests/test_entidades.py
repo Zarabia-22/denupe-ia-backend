@@ -18,7 +18,9 @@ def entrada(**cambios):
     return EntidadEntrada(**datos)
 
 
-def test_sin_entidades_registradas_se_abstiene():
+def test_sin_entidades_registradas_se_abstiene(tmp_path, monkeypatch):
+    monkeypatch.setattr("app.entidades.DIRECTORIO_PATH", tmp_path / "no-municipalidades.json")
+    monkeypatch.setattr("app.entidades.COMISARIAS_PATH", tmp_path / "no-comisarias.json")
     cargar_directorio.cache_clear()
     salida = sugerir_entidad(entrada())
     assert salida.sugerida is False
@@ -44,6 +46,7 @@ def test_recomienda_entidad_solo_con_coincidencia_territorial_y_tematica(tmp_pat
     archivo = tmp_path / "entidades.json"
     archivo.write_text(json.dumps(catalogo), encoding="utf-8")
     monkeypatch.setattr("app.entidades.DIRECTORIO_PATH", archivo)
+    monkeypatch.setattr("app.entidades.COMISARIAS_PATH", tmp_path / "no-comisarias.json")
     cargar_directorio.cache_clear()
 
     salida = sugerir_entidad(entrada())
