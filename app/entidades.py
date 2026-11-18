@@ -19,6 +19,10 @@ PNP_MAPSERVER = os.getenv(
     "https://geomininter.mininter.gob.pe/arcgis/rest/services/pnp/policia_nacional_peru/MapServer",
 )
 PNP_TIMEOUT = float(os.getenv("PNP_TIMEOUT_SECONDS", "5"))
+OSINERGMIN_MAPSERVER = os.getenv(
+    "OSINERGMIN_MAPSERVER_URL",
+    "https://gisem.osinergmin.gob.pe/serverosih/rest/services/Electricidad/ELECTRICIDAD/MapServer",
+)
 
 
 def normalizar(valor: str) -> str:
@@ -111,8 +115,90 @@ def _sugerir_comisaria_por_punto(entrada: EntidadEntrada) -> EntidadSalida:
         return EntidadSalida(sugerida=False, entidad=None, motivo="No fue posible validar la jurisdicción policial con el servicio oficial. No se asignó una comisaría; se requiere revisión manual.")
 
 
+
+def _arcgis_query_osinergmin(layer: int, params: dict) -> list[dict]:
+    """Consulta capas públicas de concesiones eléctricas de OSINERGMIN."""
+    query = {"f": "json", "outFields": "*", "returnGeometry": "false", **params}
+    url = f"{OSINERGMIN_MAPSERVER}/{layer}/query?{urlencode(query)}"
+    try:
+        with urlopen(url, timeout=PNP_TIMEOUT) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (URLError, HTTPError, TimeoutError, json.JSONDecodeError) as exc:
+        raise RuntimeError("No se pudo consultar el mapa oficial de concesiones eléctricas de OSINERGMIN") from exc
+    if "error" in payload:
+        raise RuntimeError("El servicio de concesiones eléctricas de OSINERGMIN devolvió un error")
+    return [feature.get("attributes", {}) for feature in payload.get("features", [])]
+
+
+def _sugerir_concesionaria_electrica(entrada: EntidadEntrada) -> EntidadSalida:
+    """Resuelve la concesionaria por intersección con el polígono oficial de concesión."""
+    if entrada.latitud is None or entrada.longitud is None:
+        return EntidadSalida(
+            sugerida=False, entidad=None,
+            motivo="Para identificar la empresa concesionaria eléctrica se necesita la ubicación GPS. El distrito por sí solo no permite determinar el área de concesión.",
+        )
+
+    geometry = json.dumps({"x": entrada.longitud, "y": entrada.latitud, "spatialReference": {"wkid": 4326}})
+    spatial = {
+        "where": "1=1",
+        "geometry": geometry,
+        "geometryType": "esriGeometryPoint",
+        "inSR": 4326,
+        "spatialRel": "esriSpatialRelIntersects",
+        "outFields": "CODEMP",
+        "returnGeometry": "false",
+    }
+    # Códigos y nombres tomados del dominio CODEMP publicado por la capa 33 de OSINERGMIN.
+    empresas = {
+        "EDLN": "ENEL", "ELN": "Electro Norte", "COEL": "COELVISAC",
+        "ELC": "Electro Centro", "ELDU": "Electro Dunas", "ELNO": "Electro Noroeste",
+        "ELOR": "Electro Oriente", "EPAN": "Electro Pangoa", "ELPU": "Electro Puno",
+        "ELS": "Electro Sur", "ELSE": "Electro Sur Este", "ELTO": "Electro Tocache",
+        "ELUC": "Electro Ucayali", "ELNM": "Hidrandina", "LDS": "Luz del Sur",
+        "SEAL": "SEAL", "EMSEMSA": "EMSE", "EMSEUSA": "EMSU",
+        "SERSA": "SERS", "EIHC": "Eilhicha",
+    }
+    try:
+        concesiones = _arcgis_query_osinergmin(33, spatial)
+        if len(concesiones) != 1:
+            return EntidadSalida(
+                sugerida=False, entidad=None,
+                motivo="La ubicación no intersecta una única área de concesión eléctrica identificable. Se requiere revisión manual.",
+            )
+        codigo = str(concesiones[0].get("CODEMP") or "").strip().upper()
+        empresa = empresas.get(codigo)
+        if not empresa:
+            return EntidadSalida(
+                sugerida=False, entidad=None,
+                motivo="El área de concesión no devolvió un código de empresa reconocido en el catálogo oficial. Se requiere revisión manual.",
+            )
+        return EntidadSalida(
+            sugerida=True,
+            entidad={
+                "id": f"electrica-{codigo.lower()}",
+                "nombre": empresa,
+                "tipo": "empresa_concesionaria_electrica",
+                "direccion": None,
+                "telefono": None,
+                "sitio_web": None,
+                "ambito": {
+                    "departamento": entrada.departamento,
+                    "provincia": entrada.provincia,
+                    "distrito": entrada.distrito,
+                },
+            },
+            motivo="La coordenada de la denuncia intersecta un único polígono del área de concesión eléctrica publicado por OSINERGMIN. La derivación debe ser revisada por el personal responsable.",
+        )
+    except RuntimeError:
+        return EntidadSalida(
+            sugerida=False, entidad=None,
+            motivo="No fue posible validar el área de concesión eléctrica con el servicio oficial de OSINERGMIN. No se asignó una empresa; se requiere revisión manual.",
+        )
+
 def sugerir_entidad(entrada: EntidadEntrada) -> EntidadSalida:
     categoria = normalizar(entrada.categoria)
+    if categoria == "alumbrado publico":
+        return _sugerir_concesionaria_electrica(entrada)
     if categoria in {"seguridad ciudadana", "seguridad ciudadana delitos", "delitos", "robo", "asalto", "violencia", "actividad sospechosa"}:
         return _sugerir_comisaria_por_punto(entrada)
 
