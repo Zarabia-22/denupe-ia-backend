@@ -137,3 +137,22 @@ La relación territorial se basa en el Directorio Nacional de Gobiernos Regional
 Se añade `data/comisarias_pnp_referencia.json` con 46 referencias de comisarías que aparecen en el Anexo 01 del DU 085-2020. Se conservan como datos históricos de apoyo, no como un padrón vigente ni como una relación exhaustiva de todas las comisarías actuales. Cada registro lleva `habilitada_recomendacion: false` y la fecha/fuente correspondiente.
 
 La PNP publicó posteriormente una línea base de 1,332 comisarías básicas operativas al 15/01/2026 (https://www.gob.pe/institucion/pnp/informes-publicaciones/7531378-linea-base-de-informacion-georreferenciada-de-comisarias-basicas-relacion-de-comisarias-operativas-a-nivel-nacional-2026) y un documento específico de comisarías con demarcación territorial identificada en mapa (https://www.gob.pe/institucion/pnp/informes-publicaciones/7173744-comisarias-de-la-policia-nacional-del-peru-con-demarcacion-territorial). Estos documentos deben contrastarse registro por registro para habilitar una comisaría. El endpoint excluye automáticamente cualquier registro que no tenga `habilitada_recomendacion: true` (o `verificado_competencias: true` para los registros municipales). Por tanto, la recomendación no asigna una comisaría usando únicamente el distrito administrativo.
+
+
+### Matriz de competencias y límites de derivación
+
+Se incorpora `data/matriz_competencias.json`. En esta primera versión solo se habilitan recomendaciones municipales para **Limpieza y residuos** y **Parques y áreas verdes**, con alcance distrital y respaldo general en la Ley Orgánica de Municipalidades (Ley N.° 27972). Las municipalidades de los 50 distritos reciben estas dos categorías en `categorias_habilitadas`.
+
+Se mantienen bloqueadas las recomendaciones automáticas para:
+- **Alumbrado público:** falta identificar la empresa concesionaria/titular del servicio y diferenciar instalaciones municipales.
+- **Tránsito y transporte:** debe determinarse si corresponde a competencia distrital, metropolitana, ATU, MTC u otra autoridad según vía y servicio.
+- **Vialidad e infraestructura:** se debe clasificar la jerarquía y titularidad de la vía antes de derivar.
+- **Seguridad / PNP:** el servicio geográfico MININTER disponible en la capa `Comisarias` publica puntos con atributos de departamento, provincia, distrito, nombre, códigos y región policial. La capa consultada es de geometría puntual, no acredita polígonos jurisdiccionales. Las 46 referencias históricas del DU 085-2020 no se habilitan para asignación. Se requiere cruzar con la cartografía oficial de demarcación territorial PNP y el padrón operativo vigente.
+
+Fuentes normativas y de datos:
+- Ley Orgánica de Municipalidades N.° 27972: https://cdn.www.gob.pe/uploads/document/file/2685861/Ley%20Organica%20de%20Municipalidades.pdf
+- Capa geográfica de comisarías MININTER: https://geomininter.mininter.gob.pe/arcgis/rest/services/pnp/policia_nacional_peru/MapServer/0
+- Padrón de comisarías operativas PNP 2026: https://www.gob.pe/institucion/pnp/informes-publicaciones/7531378-linea-base-de-informacion-georreferenciada-de-comisarias-basicas-relacion-de-comisarias-operativas-a-nivel-nacional-2026
+- Comisarías PNP con demarcación territorial: https://www.gob.pe/institucion/pnp/informes-publicaciones/7173744-comisarias-de-la-policia-nacional-del-peru-con-demarcacion-territorial
+
+La recomendación es una ayuda informativa: no ejecuta una derivación administrativa ni sustituye la revisión de la entidad competente. Cuando una categoría no esté habilitada o no haya registro territorial verificable, el endpoint responde `sugerida: false`.
