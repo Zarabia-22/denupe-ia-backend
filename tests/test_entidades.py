@@ -227,3 +227,76 @@ def test_pnp_se_abstiene_si_el_codigo_no_aparece_en_capa_operativa(monkeypatch):
     salida = sugerir_entidad(denuncia)
     assert salida.sugerida is False
     assert salida.entidad is None
+
+def test_alumbrado_exige_coordenadas_para_identificar_concesionaria():
+    denuncia = entrada(
+        categoria="Alumbrado público",
+        titulo="Poste sin iluminación",
+        descripcion="La luminaria de la calle no funciona desde hace varios días.",
+    )
+    salida = sugerir_entidad(denuncia)
+    assert salida.sugerida is False
+    assert salida.entidad is None
+    assert "GPS" in salida.motivo
+
+
+def test_alumbrado_resuelve_empresa_por_poligono_oficial(monkeypatch):
+    from app import entidades
+
+    calls = []
+
+    def fake_query(layer, params):
+        calls.append((layer, params))
+        return [{"CODEMP": "LDS"}]
+
+    monkeypatch.setattr(entidades, "_arcgis_query_osinergmin", fake_query)
+    denuncia = entrada(
+        categoria="Alumbrado público",
+        titulo="Luminaria apagada",
+        descripcion="El poste de alumbrado público no funciona en la avenida.",
+        latitud=-12.12,
+        longitud=-77.03,
+    )
+    salida = sugerir_entidad(denuncia)
+
+    assert salida.sugerida is True
+    assert salida.entidad.nombre == "Luz del Sur"
+    assert salida.entidad.tipo == "empresa_concesionaria_electrica"
+    assert calls[0][0] == 33
+    assert calls[0][1]["geometryType"] == "esriGeometryPoint"
+    assert calls[0][1]["spatialRel"] == "esriSpatialRelIntersects"
+
+
+def test_alumbrado_se_abstiene_si_no_hay_unico_poligono(monkeypatch):
+    from app import entidades
+
+    monkeypatch.setattr(entidades, "_arcgis_query_osinergmin", lambda layer, params: [])
+    denuncia = entrada(
+        categoria="Alumbrado público",
+        titulo="Luminaria apagada",
+        descripcion="El poste de alumbrado público no funciona en la avenida.",
+        latitud=-12.12,
+        longitud=-77.03,
+    )
+    salida = sugerir_entidad(denuncia)
+
+    assert salida.sugerida is False
+    assert salida.entidad is None
+
+
+def test_alumbrado_se_abstiene_ante_codigo_de_empresa_desconocido(monkeypatch):
+    from app import entidades
+
+    monkeypatch.setattr(entidades, "_arcgis_query_osinergmin", lambda layer, params: [{"CODEMP": "NO_EXISTE"}])
+    denuncia = entrada(
+        categoria="Alumbrado público",
+        titulo="Luminaria apagada",
+        descripcion="El poste de alumbrado público no funciona en la avenida.",
+        latitud=-12.12,
+        longitud=-77.03,
+    )
+    salida = sugerir_entidad(denuncia)
+
+    assert salida.sugerida is False
+    assert salida.entidad is None
+
