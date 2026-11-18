@@ -162,3 +162,65 @@ def test_categoria_sin_competencia_verificada_no_se_recomienda(tmp_path, monkeyp
     assert salida.sugerida is False
     assert salida.entidad is None
     cargar_directorio.cache_clear()
+
+
+def test_pnp_exige_coordenadas_para_resolver_jurisdiccion():
+    denuncia = entrada(
+        categoria="Seguridad ciudadana",
+        titulo="Robo en la calle",
+        descripcion="Una persona reporta un robo ocurrido en la vía pública.",
+    )
+    salida = sugerir_entidad(denuncia)
+    assert salida.sugerida is False
+    assert "GPS" in salida.motivo
+
+
+def test_pnp_resuelve_comisaria_con_poligono_y_confirma_capa_operativa(monkeypatch):
+    from app import entidades
+
+    calls = []
+    def fake_query(layer, params):
+        calls.append((layer, params))
+        if layer == 2:
+            return [{"cod_cpnp": "1234", "comisaria": "Miraflores", "distrito": "Miraflores"}]
+        if layer == 0:
+            return [{
+                "cod_cpnp": "1234", "comisaria": "Miraflores",
+                "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
+            }]
+        return []
+
+    monkeypatch.setattr(entidades, "_arcgis_query", fake_query)
+    denuncia = entrada(
+        categoria="Seguridad ciudadana",
+        titulo="Robo en la calle",
+        descripcion="Reporto un robo cerca del parque.",
+        latitud=-12.12,
+        longitud=-77.03,
+    )
+    salida = sugerir_entidad(denuncia)
+    assert salida.sugerida is True
+    assert salida.entidad["id"] == "pnp-1234"
+    assert salida.entidad["nombre"] == "Comisaría PNP Miraflores"
+    assert [call[0] for call in calls] == [2, 0]
+
+
+def test_pnp_se_abstiene_si_el_codigo_no_aparece_en_capa_operativa(monkeypatch):
+    from app import entidades
+
+    def fake_query(layer, params):
+        if layer == 2:
+            return [{"cod_cpnp": "1234", "comisaria": "Miraflores"}]
+        return []
+
+    monkeypatch.setattr(entidades, "_arcgis_query", fake_query)
+    denuncia = entrada(
+        categoria="Seguridad ciudadana",
+        titulo="Robo en la calle",
+        descripcion="Reporto un robo ocurrido cerca de mi domicilio.",
+        latitud=-12.12,
+        longitud=-77.03,
+    )
+    salida = sugerir_entidad(denuncia)
+    assert salida.sugerida is False
+    assert salida.entidad is None
