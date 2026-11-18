@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "alcance": "Lima Metropolitana y Provincia Constitucional del Callao",
   "reglas": [
     {
@@ -7,66 +7,78 @@
       "entidad": "Municipalidad distrital correspondiente",
       "habilitada": true,
       "condiciones": [
-        "Residuos o limpieza en espacios públicos dentro del distrito",
-        "La municipalidad debe ser la del distrito indicado"
+        "Residuos sólidos o limpieza pública en espacios públicos dentro del distrito",
+        "Validar que el incidente no corresponda a vía o infraestructura bajo otra administración"
       ],
-      "fundamento": "Ley 27972, artículo 80: funciones municipales en saneamiento, salubridad y limpieza pública.",
-      "fuente": "https://cdn.www.gob.pe/uploads/document/file/2685861/Ley%20Organica%20de%20Municipalidades.pdf"
+      "fundamento": "Ley 27972, art. 80, funciones distritales de limpieza pública.",
+      "fuente": "https://cdn.www.gob.pe/uploads/document/file/9972022/8133550-ley-organica-de-municipalidades-ley-n-27972.pdf"
     },
     {
       "categoria": "Parques y áreas verdes",
       "entidad": "Municipalidad distrital correspondiente",
       "habilitada": true,
       "condiciones": [
-        "Parque o área verde de administración local dentro del distrito"
+        "Parque o jardín público de administración local dentro del distrito"
       ],
-      "fundamento": "Ley 27972: servicios públicos locales, recreación y funciones sobre parques y jardines.",
-      "fuente": "https://portal.jne.gob.pe/portal_documentos/files/9369d0a0-5cec-4ce2-bf68-7bd7c48803f0.pdf"
-    },
-    {
-      "categoria": "Vialidad e infraestructura",
-      "entidad": "Pendiente de determinar",
-      "habilitada": false,
-      "condiciones": [
-        "Distinguir vía local, metropolitana, nacional o concesionada",
-        "Verificar titularidad y unidad ejecutora de la vía"
-      ],
-      "fundamento": "Las competencias viales varían según jerarquía y ámbito de la vía. No se debe inferir solo por distrito.",
-      "fuente": "https://cdn.www.gob.pe/uploads/document/file/2685861/Ley%20Organica%20de%20Municipalidades.pdf"
-    },
-    {
-      "categoria": "Tránsito y transporte",
-      "entidad": "Pendiente de determinar",
-      "habilitada": false,
-      "condiciones": [
-        "Determinar si es tránsito local, transporte urbano/metropolitano o carretera nacional",
-        "Verificar competencia de MML, ATU, MTC u otra autoridad según el caso"
-      ],
-      "fundamento": "La Ley 27972 asigna competencias provinciales y metropolitanas específicas; requiere clasificar el tipo de vía/servicio.",
-      "fuente": "https://cdn.www.gob.pe/uploads/document/file/2685861/Ley%20Organica%20de%20Municipalidades.pdf"
-    },
-    {
-      "categoria": "Alumbrado público",
-      "entidad": "Pendiente de determinar",
-      "habilitada": false,
-      "condiciones": [
-        "Identificar concesionaria eléctrica y punto de suministro",
-        "Distinguir alumbrado público de luminaria municipal en parque"
-      ],
-      "fundamento": "No se debe asignar automáticamente a municipalidad sin verificar titularidad del servicio y ubicación.",
-      "fuente": "https://www.gob.pe/institucion/osinergmin"
+      "fundamento": "Competencias municipales sobre servicios públicos locales y espacios recreativos; verificar administración del parque concreto.",
+      "fuente": "https://cdn.www.gob.pe/uploads/document/file/9972022/8133550-ley-organica-de-municipalidades-ley-n-27972.pdf"
     },
     {
       "categoria": "Seguridad ciudadana / delitos",
-      "entidad": "Comisaría PNP de la demarcación real",
+      "entidad": "Comisaría PNP que contiene geográficamente el punto de la denuncia",
+      "habilitada": true,
+      "condiciones": [
+        "Se requiere latitud y longitud GPS",
+        "La coordenada debe intersectar exactamente una jurisdicción en la capa PNP Jurisdicciones (polígono)",
+        "El código de comisaría debe existir también en la capa Comisarias (punto)",
+        "Si el servicio falla, hay cero o múltiples polígonos o no existe código operativo, abstenerse"
+      ],
+      "fundamento": "Consulta espacial en el servicio oficial GEOMININTER; no se utiliza el distrito administrativo como sustituto de la demarcación policial.",
+      "fuente": "https://geomininter.mininter.gob.pe/arcgis/rest/services/pnp/policia_nacional_peru/MapServer"
+    },
+    {
+      "categoria": "Transporte público urbano de pasajeros",
+      "entidad": "Autoridad de Transporte Urbano para Lima y Callao (ATU)",
       "habilitada": false,
       "condiciones": [
-        "Resolver ubicación exacta contra polígonos oficiales de demarcación",
-        "Confirmar que la comisaría figura operativa en padrón PNP vigente"
+        "La ATU ejerce jurisdicción en Lima y Callao; la categoría general actual no distingue transporte público de tránsito local, señalización, fiscalización o infraestructura",
+        "Habilitar solo después de separar subcategorías de transporte público y confirmar que el caso corresponde a sus funciones"
       ],
-      "fundamento": "La capa geográfica MININTER consultada representa puntos de comisarías con atributos de distrito y códigos; no acredita por sí sola los polígonos de jurisdicción. Las 46 referencias DU 085-2020 son históricas.",
-      "fuente": "https://geomininter.mininter.gob.pe/arcgis/rest/services/pnp/policia_nacional_peru/MapServer/0"
+      "fundamento": "La ATU ejerce jurisdicción en toda la provincia de Lima y provincia constitucional del Callao para el sistema integrado de transporte terrestre urbano de personas.",
+      "fuente": "https://www.leyes.congreso.gob.pe/documentos/2016_2021/adlp/normas_legales/30900_ley.pdf"
+    },
+    {
+      "categoria": "Alumbrado público",
+      "entidad": "Empresa concesionaria eléctrica que atiende el punto",
+      "habilitada": false,
+      "condiciones": [
+        "Osinergmin indica que las deficiencias de alumbrado público se denuncian ante la empresa eléctrica",
+        "Se debe georreferenciar la concesión eléctrica exacta; los límites norte/sur no deben inferirse únicamente por distrito cuando existen áreas compartidas"
+      ],
+      "fundamento": "Osinergmin señala que la denuncia por lámpara inoperativa, pastoral, falta de unidad o difusor se presenta ante la empresa eléctrica.",
+      "fuente": "https://www.osinergmin.gob.pe/Paginas/Folletos/folletos/electricidad.html"
+    },
+    {
+      "categoria": "Vialidad e infraestructura",
+      "entidad": "Entidad titular de la vía",
+      "habilitada": false,
+      "condiciones": [
+        "Determinar jerarquía y titularidad: local, metropolitana, nacional o concesionada",
+        "No asignar por distrito sin inventario oficial de vías"
+      ],
+      "fundamento": "La competencia depende de la jerarquía y administración de la vía.",
+      "fuente": "https://cdn.www.gob.pe/uploads/document/file/9972022/8133550-ley-organica-de-municipalidades-ley-n-27972.pdf"
+    },
+    {
+      "categoria": "Tránsito y transporte",
+      "entidad": "Pendiente de clasificar por tipo de incidente",
+      "habilitada": false,
+      "condiciones": [
+        "Separar transporte público urbano (ATU), tránsito y señalización local, vías metropolitanas y carreteras nacionales"
+      ],
+      "fundamento": "La ATU tiene ámbito Lima-Callao para el sistema de transporte terrestre urbano de personas; no todos los incidentes de tránsito pertenecen a ATU.",
+      "fuente": "https://www.leyes.congreso.gob.pe/documentos/2016_2021/adlp/normas_legales/30900_ley.pdf"
     }
   ],
-  "regla_general": "Si no existe regla habilitada y registro verificado para la categoría y ubicación, el endpoint devuelve sugerida=false. Nunca asignar automáticamente una comisaría usando solo el distrito administrativo."
+  "regla_general": "Solo se recomienda una entidad si la regla de competencia está habilitada y el dato territorial ha sido validado. Ante datos insuficientes, ambigüedad o fallo del servicio oficial, sugerida=false."
 }
