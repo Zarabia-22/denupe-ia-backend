@@ -97,3 +97,27 @@ El contenedor solo carga artefactos de **ocho clases v3**, y fallará explícita
 ## Seguridad y limitaciones
 
 Este es un prototipo académico. El endpoint no tiene autenticación ni limitación de tasa; hay que establecer controles de acceso y antiabuso antes de exposición pública. Las cargas incluyen texto redactado por ciudadanos: no se registra deliberadamente su contenido ni debe usarse información personal en pruebas públicas. Deserializar `joblib` puede ejecutar código, por lo que solo se deben cargar artefactos del repositorio de confianza. Usar HTTPS y verificar los mapeos de categorías de la base de datos.
+
+
+## HU-IA02 — Recomendación de entidad pública
+
+Se incorpora el endpoint independiente `POST /api/ia/sugerir-entidad`. Recibe la categoría, departamento, provincia, distrito, título y descripción de la denuncia. Consulta `data/entidades_publicas.json` y solo recomienda un registro cuando coinciden la jurisdicción, la categoría y términos relevantes de la descripción.
+
+Ejemplo de solicitud:
+
+```json
+{
+  "categoria": "Limpieza y residuos",
+  "departamento": "Lima",
+  "provincia": "Lima",
+  "distrito": "Miraflores",
+  "titulo": "Basura acumulada en la avenida",
+  "descripcion": "Hay bolsas de residuos y desperdicios sin recoger en la vía pública."
+}
+```
+
+La respuesta contiene `sugerida`, `entidad` (identificador, nombre, tipo, datos de contacto disponibles y ámbito territorial) y `motivo`. Si no hay coincidencia o existen candidatos equivalentes, devuelve `sugerida: false` y no asigna una institución. La selección y derivación final deben seguir bajo control del ciudadano o del personal responsable.
+
+**Estado del directorio:** el archivo inicial está vacío deliberadamente. Antes de habilitar recomendaciones reales se debe completar con instituciones y competencias verificadas en fuentes oficiales. No se deben inferir comisarías ni jurisdicciones a partir de datos inventados. La lógica actual es una primera versión de coincidencia territorial y temática basada en catálogo; no es un nuevo modelo de aprendizaje automático ni una validación legal de competencias.
+
+Pruebas específicas: `tests/test_entidades.py` cubre abstención cuando el directorio está vacío, recomendación con coincidencia y rechazo de entidades de otro distrito.
