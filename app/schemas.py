@@ -1,4 +1,4 @@
-"Contrato JSON público del servicio de IA."""
+"""Contrato JSON público del servicio de IA."""
 from pydantic import BaseModel, ConfigDict, Field
 
 
