@@ -51,8 +51,8 @@ def test_recomienda_entidad_solo_con_coincidencia_territorial_y_tematica(tmp_pat
 
     salida = sugerir_entidad(entrada())
     assert salida.sugerida is True
-    assert salida.entidad["nombre"] == "Municipalidad Distrital de Miraflores"
-    assert salida.entidad["ambito"]["distrito"] == "Miraflores"
+    assert salida.entidad.nombre == "Municipalidad Distrital de Miraflores"
+    assert salida.entidad.ambito["distrito"] == "Miraflores"
     cargar_directorio.cache_clear()
 
 
@@ -133,7 +133,7 @@ def test_recomienda_municipalidad_para_limpieza_y_residuos(tmp_path, monkeypatch
 
     salida = sugerir_entidad(entrada())
     assert salida.sugerida is True
-    assert salida.entidad["nombre"] == "Municipalidad Distrital de Miraflores"
+    assert salida.entidad.nombre == "Municipalidad Distrital de Miraflores"
     cargar_directorio.cache_clear()
 
 
@@ -203,8 +203,8 @@ def test_pnp_resuelve_comisaria_con_poligono_y_confirma_capa_operativa(monkeypat
     )
     salida = sugerir_entidad(denuncia)
     assert salida.sugerida is True
-    assert salida.entidad["id"] == "pnp-1234"
-    assert salida.entidad["nombre"] == "Comisaría PNP Miraflores"
+    assert salida.entidad.id == "pnp-1234"
+    assert salida.entidad.nombre == "Comisaría PNP Miraflores"
     assert [call[0] for call in calls] == [2, 0]
 
 
