@@ -49,14 +49,17 @@
     },
     {
       "categoria": "Alumbrado público",
-      "entidad": "Empresa concesionaria eléctrica que atiende el punto",
-      "habilitada": false,
+      "entidad": "Empresa concesionaria eléctrica que contiene geográficamente el punto de la denuncia",
+      "habilitada": true,
       "condiciones": [
-        "Osinergmin indica que las deficiencias de alumbrado público se denuncian ante la empresa eléctrica",
-        "Se debe georreferenciar la concesión eléctrica exacta; los límites norte/sur no deben inferirse únicamente por distrito cuando existen áreas compartidas"
+        "Se requiere latitud y longitud GPS de la denuncia",
+        "La coordenada debe intersectar exactamente un polígono de la capa 33 Área de Concesión de OSINERGMIN",
+        "El atributo CODEMP debe corresponder a un código de empresa reconocido en el dominio oficial de la capa",
+        "Si faltan coordenadas, el servicio falla, hay cero o múltiples polígonos o el código no está reconocido, abstenerse"
       ],
-      "fundamento": "Osinergmin señala que la denuncia por lámpara inoperativa, pastoral, falta de unidad o difusor se presenta ante la empresa eléctrica.",
-      "fuente": "https://www.osinergmin.gob.pe/Paginas/Folletos/folletos/electricidad.html"
+      "fundamento": "OSINERGMIN publica la capa georreferenciada Área de Concesión (polígonos) con el código CODEMP de la empresa concesionaria. OSINERGMIN indica que las deficiencias del alumbrado público deben reportarse a la empresa eléctrica que brinda el servicio.",
+      "fuente": "https://gisem.osinergmin.gob.pe/serverosih/rest/services/Electricidad/ELECTRICIDAD/MapServer/33",
+      "fuente_secundaria": "https://www.osinergmin.gob.pe/Paginas/Folletos/folletos/electricidad.html"
     },
     {
       "categoria": "Vialidad e infraestructura",
