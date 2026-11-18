@@ -144,7 +144,7 @@ La PNP publicó una línea base de 1,332 comisarías básicas operativas al 15/0
 Se incorpora `data/matriz_competencias.json`. En esta primera versión solo se habilitan recomendaciones municipales para **Limpieza y residuos** y **Parques y áreas verdes**, con alcance distrital y respaldo general en la Ley Orgánica de Municipalidades (Ley N.° 27972). Las municipalidades de los 50 distritos reciben estas dos categorías en `categorias_habilitadas`.
 
 Se mantienen bloqueadas las recomendaciones automáticas para:
-- **Alumbrado público:** falta identificar la empresa concesionaria/titular del servicio y diferenciar instalaciones municipales.
+- **Alumbrado público:** se resuelve mediante GPS y consulta espacial al polígono oficial de concesión eléctrica de OSINERGMIN (capa 33). Solo se recomienda cuando la coordenada intersecta exactamente un polígono y su código `CODEMP` está reconocido.
 - **Tránsito y transporte:** debe determinarse si corresponde a competencia distrital, metropolitana, ATU, MTC u otra autoridad según vía y servicio.
 - **Vialidad e infraestructura:** se debe clasificar la jerarquía y titularidad de la vía antes de derivar.
 - **Seguridad / PNP:** se consulta la capa 2 `Jurisdicciones` (polígonos) para resolver espacialmente el punto de la denuncia y la capa 0 `Comisarias` (puntos) para comprobar la presencia del código devuelto. Las 46 referencias históricas del DU 085-2020 no se habilitan para asignación. La comprobación geográfica no certifica por sí sola la situación administrativa vigente de la dependencia; se mantiene revisión humana.
@@ -188,16 +188,18 @@ Ejemplo de solicitud para seguridad:
 
 - **Limpieza y residuos:** municipalidad distrital, con base en el artículo 80 de la Ley 27972, para limpieza pública local: https://cdn.www.gob.pe/uploads/document/file/9972022/8133550-ley-organica-de-municipalidades-ley-n-27972.pdf.
 - **Parques y áreas verdes:** municipalidad distrital solo cuando se trate de parque/jardín público de administración local; la gestión concreta del espacio debe confirmarse.
-- **Transporte público urbano:** ATU tiene jurisdicción en toda la provincia de Lima y la Provincia Constitucional del Callao para el sistema integrado de transporte terrestre urbano de personas (Ley 30900, art. 3): https://www.leyes.congreso.gob.pe/documentos/2016_2021/adlp/normas_legales/30900_ley.pdf. La categoría general actual no separa ese supuesto de tránsito local, por lo que no se habilita en bloque.
-- **Alumbrado público:** Osinergmin indica que las deficiencias deben denunciarse ante la empresa eléctrica que brinda el servicio: https://www.osinergmin.gob.pe/Paginas/Folletos/folletos/electricidad.html. Se mantiene bloqueado hasta integrar polígonos vigentes de concesión eléctrica.
-- **Vialidad:** se mantiene bloqueada hasta identificar titularidad/jerarquía de la vía.
+- **Transporte público urbano:** la ATU tiene jurisdicción en Lima y Callao para el sistema integrado de transporte terrestre urbano de personas (Ley 30900): https://www.leyes.congreso.gob.pe/documentos/2016_2021/adlp/normas_legales/30900_ley.pdf. La categoría general `Tránsito y transporte` no diferencia ese supuesto de tránsito local, señalización o fiscalización; permanece bloqueada hasta contar con subcategorías explícitas.
+- **Alumbrado público:** OSINERGMIN indica que las deficiencias deben denunciarse ante la empresa eléctrica que brinda el servicio. La capa 33 `Área de Concesión` del servicio geográfico oficial publica polígonos y el dominio de códigos de empresa: https://gisem.osinergmin.gob.pe/serverosih/rest/services/Electricidad/ELECTRICIDAD/MapServer/33. Guía de atención: https://www.osinergmin.gob.pe/Paginas/Folletos/folletos/electricidad.html.
+- **Vialidad:** se mantiene bloqueada hasta identificar titularidad y jerarquía de la vía mediante inventario georreferenciado vigente. Los mapas SINAC 2023 se describen como referenciales y contienen datos de inventarios de años anteriores: https://www.gob.pe/institucion/mtc/colecciones/26217-mapa-de-redes-viales-del-sistema-nacional-de-carreteras-sinac.
 
 ### Configuración y pruebas
 
 - Variable opcional `PNP_MAPSERVER_URL`: permite configurar la URL base del MapServer oficial.
 - Variable opcional `PNP_TIMEOUT_SECONDS`: timeout de consulta (por defecto 5 segundos).
-- La consulta PNP usa la biblioteca estándar de Python, sin agregar dependencias de producción.
-- Pruebas agregadas para exigir GPS, resolver polígono y confirmar el código en capa operativa, y abstenerse cuando no aparece en dicha capa.
+- La consulta PNP y la consulta de concesiones eléctricas usan la biblioteca estándar de Python, sin agregar dependencias de producción.
+- `OSINERGMIN_MAPSERVER_URL`: permite configurar la URL base del servicio oficial de concesiones eléctricas (opcional).
+- `OSINERGMIN_TIMEOUT_SECONDS`: timeout de consulta OSINERGMIN (por defecto 5 segundos).
+- Pruebas agregadas para exigir GPS, resolver jurisdicción PNP por polígono, confirmar el código en la capa operativa, resolver la concesionaria eléctrica por el polígono de OSINERGMIN y abstenerse ante ausencia de coordenadas, ambigüedad, códigos desconocidos o errores del servicio.
 
 ### Despliegue
 
