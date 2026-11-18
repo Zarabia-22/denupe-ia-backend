@@ -113,7 +113,7 @@ def _sugerir_comisaria_por_punto(entrada: EntidadEntrada) -> EntidadSalida:
 
 def sugerir_entidad(entrada: EntidadEntrada) -> EntidadSalida:
     categoria = normalizar(entrada.categoria)
-    if categoria in {"seguridad ciudadana", "delitos", "robo", "asalto", "violencia", "actividad sospechosa"}:
+    if categoria in {"seguridad ciudadana", "seguridad ciudadana delitos", "delitos", "robo", "asalto", "violencia", "actividad sospechosa"}:
         return _sugerir_comisaria_por_punto(entrada)
 
     distrito = normalizar(entrada.distrito)
