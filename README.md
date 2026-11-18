@@ -101,7 +101,7 @@ Este es un prototipo académico. El endpoint no tiene autenticación ni limitaci
 
 ## HU-IA02 — Recomendación de entidad pública
 
-Se incorpora el endpoint independiente `POST /api/ia/sugerir-entidad`. Recibe la categoría, departamento, provincia, distrito, título y descripción de la denuncia. Consulta `data/entidades_publicas.json` y solo recomienda un registro cuando coinciden la jurisdicción, la categoría y términos relevantes de la descripción.
+Se incorpora el endpoint independiente `POST /api/ia/sugerir-entidad`. Recibe la categoría, departamento, provincia, distrito, título y descripción de la denuncia, además de latitud y longitud cuando la competencia requiere resolver una jurisdicción geográfica. Las municipalidades se consultan en `data/entidades_publicas.json`; las comisarías PNP y las empresas concesionarias eléctricas se resuelven mediante consultas espaciales a los servicios oficiales de GEOMININTER y OSINERGMIN, respectivamente. Si no existe evidencia territorial y temática suficiente, el servicio se abstiene.
 
 Ejemplo de solicitud:
 
