@@ -121,3 +121,12 @@ La respuesta contiene `sugerida`, `entidad` (identificador, nombre, tipo, datos 
 **Estado del directorio:** el archivo inicial está vacío deliberadamente. Antes de habilitar recomendaciones reales se debe completar con instituciones y competencias verificadas en fuentes oficiales. No se deben inferir comisarías ni jurisdicciones a partir de datos inventados. La lógica actual es una primera versión de coincidencia territorial y temática basada en catálogo; no es un nuevo modelo de aprendizaje automático ni una validación legal de competencias.
 
 Pruebas específicas: `tests/test_entidades.py` cubre abstención cuando el directorio está vacío, recomendación con coincidencia y rechazo de entidades de otro distrito.
+
+
+### Cobertura territorial inicial: Lima Metropolitana y Callao
+
+El catálogo `data/entidades_publicas.json` contiene 50 registros territoriales municipales: los 43 distritos de la provincia de Lima y los 7 distritos de la Provincia Constitucional del Callao. Para Lima (Cercado) se registra la Municipalidad Metropolitana de Lima y para Callao la Municipalidad Provincial del Callao; los demás registros corresponden a sus municipalidades distritales.
+
+La relación territorial se basa en el Directorio Nacional de Gobiernos Regionales, Municipalidades Provinciales y Distritales 2026 del INEI: https://www.gob.pe/institucion/inei/informes-publicaciones/8058591-national-directory-of-regional-provincial-municipalities-district-governments-and-of-populated-centers-2026. La PCM identifica a la provincia de Lima como conformada por 43 distritos: https://www.gob.pe/institucion/pcm/campanas/4355-limametropolitana-informacion-territorial. El Callao se trata como provincia constitucional separada.
+
+**Límite importante:** estos registros cubren municipalidades, no el directorio completo de entidades sectoriales. No se han inventado nombres de comisarías ni sus jurisdicciones. La PNP publica una línea base de comisarías operativas 2026 y una relación de comisarías con demarcación territorial; ambos documentos deben integrarse y verificarse antes de recomendar una comisaría específica. Además, los registros municipales marcan `verificado_competencias: false`: el catálogo territorial no constituye por sí solo una validación legal de la competencia de cada institución para cada categoría. No se deben usar las sugerencias como derivación automática sin validar esa matriz.
