@@ -36,6 +36,7 @@ def test_recomienda_entidad_solo_con_coincidencia_territorial_y_tematica(tmp_pat
         "distrito": "Miraflores",
         "categorias": ["Limpieza y residuos"],
         "palabras_clave": ["residuos", "basura", "desperdicios"],
+        "habilitada_recomendacion": True,
         "direccion": None,
         "telefono": None,
         "sitio_web": None,
@@ -62,6 +63,7 @@ def test_no_recomienda_entidad_de_otro_distrito(tmp_path, monkeypatch):
         "distrito": "Santiago de Surco",
         "categorias": ["Limpieza y residuos"],
         "palabras_clave": ["residuos", "basura"],
+        "habilitada_recomendacion": True,
     }]
     archivo = tmp_path / "entidades.json"
     archivo.write_text(json.dumps(catalogo), encoding="utf-8")
@@ -69,6 +71,39 @@ def test_no_recomienda_entidad_de_otro_distrito(tmp_path, monkeypatch):
     cargar_directorio.cache_clear()
 
     salida = sugerir_entidad(entrada())
+    assert salida.sugerida is False
+    assert salida.entidad is None
+    cargar_directorio.cache_clear()
+
+
+
+def test_comisaria_historica_no_se_recomienda_automaticamente(tmp_path, monkeypatch):
+    catalogo = [{
+        "id": "pnp-6000",
+        "nombre": "Comisaría PNP Callao",
+        "tipo": "comisaria_pnp",
+        "departamento": "Callao",
+        "provincia": "Callao",
+        "distrito": "Callao",
+        "categorias": ["Seguridad ciudadana"],
+        "palabras_clave": ["robo", "asalto"],
+        "habilitada_recomendacion": False,
+    }]
+    archivo = tmp_path / "entidades.json"
+    archivo.write_text(json.dumps(catalogo), encoding="utf-8")
+    monkeypatch.setattr("app.entidades.DIRECTORIO_PATH", archivo)
+    monkeypatch.setattr("app.entidades.COMISARIAS_PATH", tmp_path / "no-existe.json")
+    cargar_directorio.cache_clear()
+
+    denuncia = entrada(
+        categoria="Seguridad ciudadana",
+        departamento="Callao",
+        provincia="Callao",
+        distrito="Callao",
+        titulo="Robo en la vía pública",
+        descripcion="Reporto un robo ocurrido cerca de mi domicilio.",
+    )
+    salida = sugerir_entidad(denuncia)
     assert salida.sugerida is False
     assert salida.entidad is None
     cargar_directorio.cache_clear()
