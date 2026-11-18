@@ -156,3 +156,49 @@ Fuentes normativas y de datos:
 - Comisarías PNP con demarcación territorial: https://www.gob.pe/institucion/pnp/informes-publicaciones/7173744-comisarias-de-la-policia-nacional-del-peru-con-demarcacion-territorial
 
 La recomendación es una ayuda informativa: no ejecuta una derivación administrativa ni sustituye la revisión de la entidad competente. Cuando una categoría no esté habilitada o no haya registro territorial verificable, el endpoint responde `sugerida: false`.
+
+
+## Validación territorial y despliegue HU-IA02 (actualización)
+
+### Policía Nacional: resolución por punto geográfico
+
+El endpoint `POST /api/ia/sugerir-entidad` admite ahora `latitud` y `longitud` opcionales. Para categorías de seguridad/delitos exige ambas coordenadas y consulta el servicio oficial GEOMININTER:
+- Capa 2 `Jurisdicciones`: geometría poligonal; realiza una consulta espacial `esriSpatialRelIntersects` con el punto de la denuncia.
+- Capa 0 `Comisarias`: comprueba que el código `cod_cpnp` devuelto por el polígono exista también en la capa operativa publicada.
+- Si faltan coordenadas, el servicio falla, la geometría no identifica exactamente una jurisdicción o el código no está en la capa operativa, devuelve `sugerida: false`.
+
+Servicio y esquema de capas: https://geomininter.mininter.gob.pe/arcgis/rest/services/pnp/policia_nacional_peru/MapServer/layers. La capa de jurisdicciones publica geometría poligonal y campos `cod_cpnp`, `comisaria`, `departamento`, `provincia`, `distrito`; la capa de comisarías publica puntos y los mismos códigos de identificación. La línea base PNP 2026 declara 1,332 comisarías básicas operativas a nivel nacional (corte 15/01/2026): https://www.gob.pe/institucion/pnp/informes-publicaciones/7531378-linea-base-de-informacion-georreferenciada-de-comisarias-basicas-relacion-de-comisarias-operativas-a-nivel-nacional-2026. La verificación en el MapServer es una comprobación de presencia en la capa geográfica, no certifica por sí sola el estatus administrativo actual de cada dependencia; mantener revisión humana para casos sensibles.
+
+Ejemplo de solicitud para seguridad:
+
+```json
+{
+  "categoria": "Seguridad ciudadana",
+  "departamento": "Lima",
+  "provincia": "Lima",
+  "distrito": "Miraflores",
+  "titulo": "Robo en la vía pública",
+  "descripcion": "Reporto un robo cerca del parque.",
+  "latitud": -12.12,
+  "longitud": -77.03
+}
+```
+
+### Otras competencias
+
+- **Limpieza y residuos:** municipalidad distrital, con base en el artículo 80 de la Ley 27972, para limpieza pública local: https://cdn.www.gob.pe/uploads/document/file/9972022/8133550-ley-organica-de-municipalidades-ley-n-27972.pdf.
+- **Parques y áreas verdes:** municipalidad distrital solo cuando se trate de parque/jardín público de administración local; la gestión concreta del espacio debe confirmarse.
+- **Transporte público urbano:** ATU tiene jurisdicción en toda la provincia de Lima y la Provincia Constitucional del Callao para el sistema integrado de transporte terrestre urbano de personas (Ley 30900, art. 3): https://www.leyes.congreso.gob.pe/documentos/2016_2021/adlp/normas_legales/30900_ley.pdf. La categoría general actual no separa ese supuesto de tránsito local, por lo que no se habilita en bloque.
+- **Alumbrado público:** Osinergmin indica que las deficiencias deben denunciarse ante la empresa eléctrica que brinda el servicio: https://www.osinergmin.gob.pe/Paginas/Folletos/folletos/electricidad.html. Se mantiene bloqueado hasta integrar polígonos vigentes de concesión eléctrica.
+- **Vialidad:** se mantiene bloqueada hasta identificar titularidad/jerarquía de la vía.
+
+### Configuración y pruebas
+
+- Variable opcional `PNP_MAPSERVER_URL`: permite configurar la URL base del MapServer oficial.
+- Variable opcional `PNP_TIMEOUT_SECONDS`: timeout de consulta (por defecto 5 segundos).
+- La consulta PNP usa la biblioteca estándar de Python, sin agregar dependencias de producción.
+- Pruebas agregadas para exigir GPS, resolver polígono y confirmar el código en capa operativa, y abstenerse cuando no aparece en dicha capa.
+
+### Despliegue
+
+El repositorio define `render.yaml` con runtime Docker, `/health` y despliegue por commit. El push a esta rama puede desplegar automáticamente solo si el servicio Render está vinculado a esta rama y tiene auto-deploy habilitado. No se debe afirmar que está desplegado hasta comprobar un deploy exitoso y consultar el endpoint en el servicio correspondiente.
