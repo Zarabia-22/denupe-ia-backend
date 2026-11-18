@@ -23,6 +23,7 @@ OSINERGMIN_MAPSERVER = os.getenv(
     "OSINERGMIN_MAPSERVER_URL",
     "https://gisem.osinergmin.gob.pe/serverosih/rest/services/Electricidad/ELECTRICIDAD/MapServer",
 )
+OSINERGMIN_TIMEOUT = float(os.getenv("OSINERGMIN_TIMEOUT_SECONDS", "5"))
 
 
 def normalizar(valor: str) -> str:
@@ -121,7 +122,7 @@ def _arcgis_query_osinergmin(layer: int, params: dict) -> list[dict]:
     query = {"f": "json", "outFields": "*", "returnGeometry": "false", **params}
     url = f"{OSINERGMIN_MAPSERVER}/{layer}/query?{urlencode(query)}"
     try:
-        with urlopen(url, timeout=PNP_TIMEOUT) as response:
+        with urlopen(url, timeout=OSINERGMIN_TIMEOUT) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except (URLError, HTTPError, TimeoutError, json.JSONDecodeError) as exc:
         raise RuntimeError("No se pudo consultar el mapa oficial de concesiones eléctricas de OSINERGMIN") from exc
