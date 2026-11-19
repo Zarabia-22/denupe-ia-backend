@@ -39,12 +39,14 @@
     {
       "categoria": "Transporte público urbano de pasajeros",
       "entidad": "Autoridad de Transporte Urbano para Lima y Callao (ATU)",
-      "habilitada": false,
+      "habilitada": true,
       "condiciones": [
-        "La ATU ejerce jurisdicción en Lima y Callao; la categoría general actual no distingue transporte público de tránsito local, señalización, fiscalización o infraestructura",
-        "Habilitar solo después de separar subcategorías de transporte público y confirmar que el caso corresponde a sus funciones"
+        "La categoría debe ser exactamente Transporte público urbano de pasajeros; no se habilita la categoría genérica Tránsito y transporte",
+        "La provincia debe ser Lima (departamento Lima) o Callao (departamento Callao)",
+        "La recomendación se limita a asuntos del sistema integrado de transporte urbano de personas; requiere revisión humana para confirmar la materia concreta",
+        "No se recomienda ATU para semaforización, señalización vial local, daños de infraestructura vial ni infracciones ajenas a su ámbito"
       ],
-      "fundamento": "La ATU ejerce jurisdicción en toda la provincia de Lima y provincia constitucional del Callao para el sistema integrado de transporte terrestre urbano de personas.",
+      "fundamento": "Ley 30900, artículo 3: la ATU ejerce jurisdicción en toda la provincia de Lima y la Provincia Constitucional del Callao para el sistema integrado de transporte terrestre urbano de personas.",
       "fuente": "https://www.leyes.congreso.gob.pe/documentos/2016_2021/adlp/normas_legales/30900_ley.pdf"
     },
     {
