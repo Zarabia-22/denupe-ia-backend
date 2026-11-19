@@ -9,6 +9,10 @@ from uuid import uuid4
 import os
 
 
+class _PayloadTooLarge(Exception):
+    pass
+
+
 def _positive_int(name: str, default: int, minimum: int = 1) -> int:
     raw = os.getenv(name, str(default))
     try:
@@ -70,7 +74,17 @@ class RequestProtectionMiddleware:
                 return
 
         bucket.append(now)
+        received = 0
         response_started = False
+
+        async def limited_receive():
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > self.max_body:
+                    raise _PayloadTooLarge()
+            return message
 
         async def protected_send(message):
             nonlocal response_started
@@ -87,7 +101,11 @@ class RequestProtectionMiddleware:
             await send(message)
 
         try:
-            await self.app(scope, receive, protected_send)
+            await self.app(scope, limited_receive, protected_send)
+        except _PayloadTooLarge:
+            if response_started:
+                raise
+            await respond(413, b'{"detail":"El cuerpo de la solicitud supera el limite permitido."}')
         except Exception:
             if response_started:
                 raise

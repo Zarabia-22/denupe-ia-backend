@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .predictor import cargar_modelo, sugerir_categoria
-from .entidades import sugerir_entidad
+from .entidades import sugerir_entidad, cargar_directorio
 from .schemas import DenunciaEntrada, SugerenciaSalida, EntidadEntrada, EntidadSalida
 
 
@@ -16,6 +16,7 @@ from .schemas import DenunciaEntrada, SugerenciaSalida, EntidadEntrada, EntidadS
 async def lifespan(app: FastAPI):
     # Fallar en el arranque si faltan los artefactos del clasificador actual.
     cargar_modelo()
+    cargar_directorio()
     yield
 
 
@@ -49,11 +50,13 @@ def health():
 def readiness():
     """Comprueba que el artefacto del modelo y el directorio local son utilizables."""
     modelo, vectorizador, metricas = cargar_modelo()
+    entidades = cargar_directorio()
     return {
         "status": "ready",
         "modelo_version": metricas["version"],
         "categorias": len(modelo.classes_),
         "vocabulario": len(vectorizador.transformer_list[0][1].vocabulary_),
+        "entidades_catalogo": len(entidades),
     }
 
 

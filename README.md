@@ -210,7 +210,7 @@ El repositorio define `render.yaml` con runtime Docker, `/health` y despliegue p
 
 ### Validación y límites HTTP
 - Los contratos rechazan campos adicionales, textos vacíos y coordenadas incompletas o fuera de rango.
-- El middleware limita el tamaño declarado del cuerpo HTTP (por defecto 16 KiB), aplica una cuota por IP (120 solicitudes/minuto por proceso) y agrega identificador de solicitud y cabeceras de seguridad.
+- El middleware limita el tamaño real del cuerpo HTTP (por defecto 16 KiB), aplica una cuota por IP (120 solicitudes/minuto por proceso) y agrega identificador de solicitud y cabeceras de seguridad.
 - Variables: `MAX_REQUEST_BODY_BYTES` y `RATE_LIMIT_PER_MINUTE`.
 - El limitador incluido mantiene contadores en memoria y es adecuado únicamente para una instancia. En despliegues con varias instancias debe trasladarse a Redis o a un gateway gestionado; no se debe confiar en `X-Forwarded-For` sin configurar proxies de confianza.
 

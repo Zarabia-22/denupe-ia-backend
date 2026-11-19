@@ -39,6 +39,7 @@ def test_recomienda_entidad_solo_con_coincidencia_territorial_y_tematica(tmp_pat
         "categorias": ["Limpieza y residuos"],
         "palabras_clave": ["residuos", "basura", "desperdicios"],
         "habilitada_recomendacion": True,
+        "verificado_competencias": True,
         "direccion": None,
         "telefono": None,
         "sitio_web": None,
