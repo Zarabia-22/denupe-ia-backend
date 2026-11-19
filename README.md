@@ -276,3 +276,23 @@ El endpoint `GET /api/territorio/catalogo-distrital` ahora devuelve una entidad 
 **Importante:** “relacionada” no significa que todas las instituciones sean competentes para cualquier incidente de esa categoría. En alumbrado, PNP, tránsito y vialidad, el catálogo preconfigura la familia de entidades y la regla de resolución; la institución concreta depende del punto GPS y del tipo de hecho. En agua se debe confirmar el operador efectivo. Para “Otros”, la municipalidad es una ventanilla inicial de orientación, no una atribución universal de competencia. `revision_competencia` continúa existiendo únicamente como bandeja interna de respaldo de DenuPe y nunca se muestra como entidad pública ni como entidad principal de la matriz.
 
 La cobertura de esta matriz sigue limitada a los 50 distritos configurados de Lima Metropolitana y Callao. No se debe afirmar cobertura nacional hasta incorporar y validar directorios municipales y operadores de saneamiento, electricidad, PNP y autoridades viales de las demás regiones. Se añadió una prueba que recorre los 50 registros y exige ocho de ocho categorías con entidad principal relacionada.
+
+
+### Catálogo territorial nacional en InsForge (integración en curso)
+
+El servicio resuelve primero las coordenadas contra el polígono distrital oficial y obtiene el UBIGEO. Con ese código consulta las RPC de InsForge:
+
+- `consultar_matriz_distrital_por_ubigeo(p_ubigeo)`: exige exactamente ocho relaciones, una por categoría.
+- `consultar_entidades_por_ubigeo(p_ubigeo, p_categoria_code)`: recupera el resolutor sectorial de la categoría.
+- `GET /api/territorio/catalogo-distrital?latitud=...&longitud=...`: devuelve la matriz solo con GPS.
+- `GET /api/territorio/resolver-distrito?latitud=...&longitud=...`: devuelve el UBIGEO validado y confirma que existe la matriz completa.
+
+Configura en Render, como variables privadas del servicio:
+
+- `INSFORGE_URL`: URL base del proyecto InsForge.
+- `INSFORGE_API_KEY`: API Key administrativa `ik_...`; **solo en el backend**, nunca en Flutter ni en el repositorio.
+- `INSFORGE_TIMEOUT_SECONDS`: timeout de la consulta (por defecto 8 segundos).
+
+La integración falla de forma cerrada: si faltan credenciales, la RPC no responde o la matriz no contiene las ocho categorías, no devuelve un catálogo alternativo local ni asigna una entidad. La matriz contiene resolutores sectoriales, no nombres verificados de cada comisaría, EPS, concesionaria o titular vial. Para esos casos el servicio debe conservar la selección manual hasta confirmar la entidad concreta.
+
+**Importante:** antes de activar esta integración, aplica la migración del repositorio principal en un entorno InsForge de pruebas y comprueba las dos RPC. La migración debe usar el rol administrativo `project_admin` de InsForge para la escritura confiable; no usa el rol `service_role` de Supabase. No se debe copiar la API Key al cliente móvil.
