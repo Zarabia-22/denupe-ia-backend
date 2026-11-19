@@ -283,8 +283,8 @@ def test_alumbrado_se_abstiene_si_no_hay_unico_poligono(monkeypatch):
     )
     salida = sugerir_entidad(denuncia)
 
-    assert salida.sugerida is False
-    assert salida.entidad is None
+    assert salida.sugerida is True
+    assert salida.entidad.tipo == "revision_competencia"
 
 
 def test_alumbrado_se_abstiene_ante_codigo_de_empresa_desconocido(monkeypatch):
@@ -300,8 +300,8 @@ def test_alumbrado_se_abstiene_ante_codigo_de_empresa_desconocido(monkeypatch):
     )
     salida = sugerir_entidad(denuncia)
 
-    assert salida.sugerida is False
-    assert salida.entidad is None
+    assert salida.sugerida is True
+    assert salida.entidad.tipo == "revision_competencia"
 
 def test_atu_recomienda_para_transporte_publico_en_lima():
     denuncia = entrada(
@@ -342,8 +342,8 @@ def test_atu_se_abstiene_fuera_de_lima_y_callao():
         descripcion="El servicio de transporte urbano presenta incumplimientos.",
     )
     salida = sugerir_entidad(denuncia)
-    assert salida.sugerida is False
-    assert salida.entidad is None
+    assert salida.sugerida is True
+    assert salida.entidad.tipo == "revision_competencia"
 
 
 
@@ -392,8 +392,8 @@ def test_transito_y_transporte_generico_no_asigna_atu():
         descripcion="El semáforo de la intersección no funciona correctamente.",
     )
     salida = sugerir_entidad(denuncia)
-    assert salida.sugerida is False
-    assert salida.entidad is None
+    assert salida.sugerida is True
+    assert salida.entidad.tipo == "revision_competencia"
 
 
 
@@ -467,8 +467,8 @@ def test_pnp_no_colapsa_jurisdicciones_con_codigos_distintos(monkeypatch):
     denuncia = entrada(categoria="Seguridad ciudadana", titulo="Robo en la calle",
         descripcion="Reporto un robo cerca del parque.", latitud=-12.12, longitud=-77.03)
     salida = sugerir_entidad(denuncia)
-    assert salida.sugerida is False
-    assert salida.entidad is None
+    assert salida.sugerida is True
+    assert salida.entidad.tipo == "revision_competencia"
 
 
 def test_alumbrado_colapsa_poligonos_duplicados_de_la_misma_empresa(monkeypatch):
@@ -523,8 +523,8 @@ def test_un_resultado_sin_codigo_no_se_descarta_al_resolver_jurisdiccion(monkeyp
     denuncia = entrada(categoria="Seguridad ciudadana", titulo="Robo en la calle",
         descripcion="Reporto un robo cerca del parque.", latitud=-12.12, longitud=-77.03)
     salida = sugerir_entidad(denuncia)
-    assert salida.sugerida is False
-    assert salida.entidad is None
+    assert salida.sugerida is True
+    assert salida.entidad.tipo == "revision_competencia"
 
 
 def test_listar_entidades_disponibles_devuelve_municipalidad_por_categoria_y_territorio():
@@ -592,8 +592,8 @@ def test_agua_saneamiento_no_recomienda_sedapal_fuera_de_su_ambito():
         descripcion="Una tubería rota provoca un aniego en la avenida.",
     )
     salida = sugerir_entidad(denuncia)
-    assert salida.sugerida is False
-    assert salida.entidad is None
+    assert salida.sugerida is True
+    assert salida.entidad.tipo == "revision_competencia"
 
 
 def test_agua_saneamiento_se_abstiene_si_el_texto_no_identifica_red():
@@ -603,8 +603,8 @@ def test_agua_saneamiento_se_abstiene_si_el_texto_no_identifica_red():
         descripcion="Tengo una consulta general sobre mi recibo mensual.",
     )
     salida = sugerir_entidad(denuncia)
-    assert salida.sugerida is False
-    assert salida.entidad is None
+    assert salida.sugerida is True
+    assert salida.entidad.tipo == "revision_competencia"
 
 
 def test_catalogo_disponible_incluye_sedapal_para_agua_en_lima():
@@ -646,3 +646,36 @@ def test_catalogo_sedapal_cubre_los_50_distritos_registrados():
             item["distrito"],
         )
         assert [entity["id"] for entity in resultado] == ["sedapal-lima-callao"]
+
+
+
+def test_las_ocho_categorias_tienen_un_destino_de_derivacion():
+    casos = [
+        ("Alumbrado público", "Poste sin iluminación", "La luminaria de la calle no funciona."),
+        ("Seguridad ciudadana", "Robo en la calle", "Reporto un robo cerca del parque."),
+        ("Limpieza y residuos", "Basura acumulada", "Hay residuos y bolsas sin recoger en la vía pública."),
+        ("Agua y saneamiento", "No hay agua en mi casa", "Desde ayer no llega agua por la tubería."),
+        ("Tránsito y transporte", "Semáforo averiado", "El semáforo de la intersección no funciona."),
+        ("Parques y áreas verdes", "Parque abandonado", "El parque del barrio tiene jardines descuidados y árboles sin poda."),
+        ("Vialidad e infraestructura", "Baches en la pista", "La calzada tiene huecos profundos y veredas rotas."),
+        ("Otros", "Ruido por la noche", "Un local emite música con parlantes muy fuertes hasta la madrugada."),
+    ]
+    for categoria, titulo, descripcion in casos:
+        salida = sugerir_entidad(entrada(
+            categoria=categoria,
+            titulo=titulo,
+            descripcion=descripcion,
+        ))
+        assert salida.sugerida is True, categoria
+        assert salida.entidad is not None, categoria
+        assert salida.entidad.id, categoria
+
+
+def test_fallback_de_revision_es_explicito_y_no_se_presenta_como_entidad_externa():
+    salida = sugerir_entidad(entrada(
+        categoria="Tránsito y transporte",
+        titulo="Semáforo averiado",
+        descripcion="El semáforo de la intersección no funciona.",
+    ))
+    assert salida.entidad.tipo == "revision_competencia"
+    assert "no una entidad pública externa" in salida.motivo

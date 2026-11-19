@@ -214,3 +214,18 @@ def test_listar_entidades_disponibles_incluye_sedapal_para_agua():
     data = response.json()
     assert len(data["entidades"]) == 1
     assert data["entidades"][0]["id"] == "sedapal-lima-callao"
+
+
+def test_catalogo_devuelve_revision_para_categoria_sin_entidad_publica_habilitada():
+    with TestClient(app) as cliente:
+        response = cliente.get("/api/entidades/disponibles", params={
+            "categoria": "Otros",
+            "departamento": "Lima",
+            "provincia": "Lima",
+            "distrito": "Miraflores",
+        })
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["entidades"]) == 1
+    assert data["entidades"][0]["tipo"] == "revision_competencia"
+    assert "revisión de competencia" in data["motivo"].lower()
