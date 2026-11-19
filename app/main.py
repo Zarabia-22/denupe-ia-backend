@@ -114,7 +114,21 @@ def resolver_territorio(
     tags=["Derivación inteligente"],
 )
 def predecir_entidad(denuncia: EntidadEntrada) -> EntidadSalida:
-    """Devuelve una entidad pública verificada o la bandeja interna de revisión."""
+    """El GPS determina el distrito antes de evaluar la competencia municipal."""
+    if denuncia.latitud is not None and denuncia.longitud is not None:
+        try:
+            territorio = resolver_distrito_por_punto(denuncia.latitud, denuncia.longitud)
+        except RuntimeError as exc:
+            return EntidadSalida(
+                sugerida=False,
+                entidad=None,
+                motivo=f"No se pudo validar el distrito a partir del GPS: {exc} Se conserva la selección manual.",
+            )
+        denuncia = denuncia.model_copy(update={
+            "departamento": territorio["departamento"],
+            "provincia": territorio["provincia"],
+            "distrito": territorio["distrito"],
+        })
     return sugerir_entidad(denuncia)
 
 @app.get(
@@ -133,6 +147,14 @@ def entidades_disponibles(
     """Lista entidades verificadas o el destino interno de revisión como respaldo."""
     if (latitud is None) != (longitud is None):
         raise HTTPException(status_code=422, detail="latitud y longitud deben enviarse juntas")
+    if latitud is not None and longitud is not None:
+        try:
+            territorio = resolver_distrito_por_punto(latitud, longitud)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=422, detail=f"No se pudo resolver el distrito por GPS: {exc}") from exc
+        departamento = territorio["departamento"]
+        provincia = territorio["provincia"]
+        distrito = territorio["distrito"]
     items = listar_entidades_disponibles(
         categoria, departamento, provincia, distrito, latitud, longitud
     )

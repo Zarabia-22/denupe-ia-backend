@@ -719,3 +719,35 @@ def test_resolver_distrito_por_gps_se_abstiene_si_hay_dos_poligonos(monkeypatch)
     ])
     with pytest.raises(RuntimeError, match="único polígono"):
         entidades.resolver_distrito_por_punto(-12.12, -77.03)
+
+
+def test_post_recomendacion_usa_distrito_resuelto_por_gps(monkeypatch):
+    from app import main
+
+    monkeypatch.setattr(main, "resolver_distrito_por_punto", lambda lat, lon: {
+        "ubigeo": "150122", "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
+    })
+    denuncia = entrada(
+        distrito="San Isidro",
+        latitud=-12.12,
+        longitud=-77.03,
+    )
+    salida = main.predecir_entidad(denuncia)
+    assert salida.entidad.ambito["distrito"] == "Miraflores"
+
+
+def test_catalogo_disponible_usa_distrito_resuelto_por_gps(monkeypatch):
+    from app import main
+
+    monkeypatch.setattr(main, "resolver_distrito_por_punto", lambda lat, lon: {
+        "ubigeo": "150122", "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
+    })
+    salida = main.entidades_disponibles(
+        categoria="Limpieza y residuos",
+        departamento="Callao",
+        provincia="Callao",
+        distrito="Callao",
+        latitud=-12.12,
+        longitud=-77.03,
+    )
+    assert salida.entidades[0].ambito["distrito"] == "Miraflores"
