@@ -33,16 +33,38 @@ def normalizar(valor: str) -> str:
 
 
 def _leer_lista(path: Path) -> list[dict]:
+    """Carga y valida el catálogo completo; nunca ignora silenciosamente datos corruptos."""
     if not path.exists():
         return []
-    with path.open(encoding="utf-8") as archivo:
-        data = json.load(archivo)
+    try:
+        with path.open(encoding="utf-8") as archivo:
+            data = json.load(archivo)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"No se pudo leer el directorio {path.name}") from exc
+
     if not isinstance(data, list):
         raise RuntimeError(f"El directorio {path.name} debe ser una lista JSON")
+
     requeridos = {"id", "nombre", "tipo", "departamento", "provincia", "distrito", "categorias", "palabras_clave"}
-    for entidad in data:
+    ids = set()
+    for indice, entidad in enumerate(data):
         if not isinstance(entidad, dict) or not requeridos.issubset(entidad):
-            raise RuntimeError(f"Registro incompleto en {path.name}")
+            raise RuntimeError(f"Registro incompleto en {path.name}, posición {indice}")
+        for campo in ("id", "nombre", "tipo", "departamento", "provincia", "distrito"):
+            if not isinstance(entidad[campo], str) or not entidad[campo].strip():
+                raise RuntimeError(f"Campo {campo} inválido en {path.name}, posición {indice}")
+        if entidad["id"] in ids:
+            raise RuntimeError(f"Identificador duplicado en {path.name}: {entidad['id']}")
+        ids.add(entidad["id"])
+        for campo in ("categorias", "palabras_clave"):
+            valores = entidad[campo]
+            if not isinstance(valores, list) or any(not isinstance(v, str) or not v.strip() for v in valores):
+                raise RuntimeError(f"Campo {campo} inválido en {path.name}, posición {indice}")
+        habilitadas = entidad.get("categorias_habilitadas", [])
+        if not isinstance(habilitadas, list) or any(not isinstance(v, str) or not v.strip() for v in habilitadas):
+            raise RuntimeError(f"Campo categorias_habilitadas inválido en {path.name}, posición {indice}")
+        if entidad.get("habilitada_recomendacion", False) and not entidad.get("verificado_competencias", False):
+            raise RuntimeError(f"Entidad habilitada sin competencia verificada: {entidad['id']}")
     return data
 
 

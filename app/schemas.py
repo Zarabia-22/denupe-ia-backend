@@ -1,11 +1,21 @@
 """Contrato JSON público del servicio de IA."""
-from pydantic import BaseModel, ConfigDict, Field
+from math import isfinite
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class DenunciaEntrada(BaseModel):
     model_config = ConfigDict(extra="forbid")
     titulo: str = Field(min_length=5, max_length=100)
     descripcion: str = Field(min_length=10, max_length=500)
+
+    @field_validator("titulo", "descripcion")
+    @classmethod
+    def texto_no_vacio(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("El texto no puede contener únicamente espacios")
+        return value
 
 
 class SugerenciaSalida(BaseModel):
@@ -26,6 +36,27 @@ class EntidadEntrada(BaseModel):
     descripcion: str = Field(min_length=10, max_length=500)
     latitud: float | None = Field(default=None, ge=-90, le=90)
     longitud: float | None = Field(default=None, ge=-180, le=180)
+
+    @field_validator("categoria", "departamento", "provincia", "distrito", "titulo", "descripcion")
+    @classmethod
+    def normalizar_textos(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("El campo no puede contener únicamente espacios")
+        return value
+
+    @field_validator("latitud", "longitud")
+    @classmethod
+    def coordenada_finita(cls, value: float | None) -> float | None:
+        if value is not None and not isfinite(value):
+            raise ValueError("La coordenada debe ser un número finito")
+        return value
+
+    @model_validator(mode="after")
+    def coordenadas_completas(self):
+        if (self.latitud is None) != (self.longitud is None):
+            raise ValueError("latitud y longitud deben enviarse juntas")
+        return self
 
 
 class EntidadPublica(BaseModel):

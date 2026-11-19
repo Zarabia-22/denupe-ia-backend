@@ -2,6 +2,8 @@
 from contextlib import asynccontextmanager
 import os
 
+from .middleware import RequestProtectionMiddleware
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -24,6 +26,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(RequestProtectionMiddleware)
+
 # CORS no autentica una API. En Flutter nativo no hace falta CORS.
 origins = [s.strip() for s in os.getenv("CORS_ORIGINS", "").split(",") if s.strip()]
 if origins:
@@ -37,7 +41,20 @@ if origins:
 
 @app.get("/health", tags=["Salud"])
 def health():
+    # Contrato existente conservado para Render y clientes de monitorización.
     return {"status": "ok", "modelo": "tfidf_logistic_regression_8"}
+
+
+@app.get("/health/ready", tags=["Salud"])
+def readiness():
+    """Comprueba que el artefacto del modelo y el directorio local son utilizables."""
+    modelo, vectorizador, metricas = cargar_modelo()
+    return {
+        "status": "ready",
+        "modelo_version": metricas["version"],
+        "categorias": len(modelo.classes_),
+        "vocabulario": len(vectorizador.transformer_list[0][1].vocabulary_),
+    }
 
 
 @app.post(
