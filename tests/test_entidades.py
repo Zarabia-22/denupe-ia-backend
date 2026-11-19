@@ -68,6 +68,7 @@ def test_no_recomienda_entidad_de_otro_distrito(tmp_path, monkeypatch):
         "categorias": ["Limpieza y residuos"],
         "palabras_clave": ["residuos", "basura"],
         "habilitada_recomendacion": True,
+        "verificado_competencias": True,
     }]
     archivo = tmp_path / "entidades.json"
     archivo.write_text(json.dumps(catalogo), encoding="utf-8")
