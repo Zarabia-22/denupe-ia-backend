@@ -300,3 +300,56 @@ def test_alumbrado_se_abstiene_ante_codigo_de_empresa_desconocido(monkeypatch):
     assert salida.sugerida is False
     assert salida.entidad is None
 
+def test_atu_recomienda_para_transporte_publico_en_lima():
+    denuncia = entrada(
+        categoria="Transporte público urbano de pasajeros",
+        departamento="Lima",
+        provincia="Lima",
+        distrito="Miraflores",
+        titulo="Incumplimiento de frecuencia de buses",
+        descripcion="Los buses del servicio urbano no respetan la frecuencia establecida.",
+    )
+    salida = sugerir_entidad(denuncia)
+    assert salida.sugerida is True
+    assert salida.entidad.id == "atu-lima-callao"
+    assert salida.entidad.tipo == "autoridad_transporte_urbano"
+
+
+def test_atu_recomienda_para_transporte_publico_en_callao():
+    denuncia = entrada(
+        categoria="Transporte público urbano de pasajeros",
+        departamento="Callao",
+        provincia="Callao",
+        distrito="Bellavista",
+        titulo="Problema con servicio de transporte",
+        descripcion="El servicio de transporte urbano presenta incumplimientos.",
+    )
+    salida = sugerir_entidad(denuncia)
+    assert salida.sugerida is True
+    assert salida.entidad.id == "atu-lima-callao"
+
+
+def test_atu_se_abstiene_fuera_de_lima_y_callao():
+    denuncia = entrada(
+        categoria="Transporte público urbano de pasajeros",
+        departamento="Arequipa",
+        provincia="Arequipa",
+        distrito="Arequipa",
+        titulo="Problema con servicio de transporte",
+        descripcion="El servicio de transporte urbano presenta incumplimientos.",
+    )
+    salida = sugerir_entidad(denuncia)
+    assert salida.sugerida is False
+    assert salida.entidad is None
+
+
+def test_transito_y_transporte_generico_no_asigna_atu():
+    denuncia = entrada(
+        categoria="Tránsito y transporte",
+        titulo="Semáforo averiado",
+        descripcion="El semáforo de la intersección no funciona correctamente.",
+    )
+    salida = sugerir_entidad(denuncia)
+    assert salida.sugerida is False
+    assert salida.entidad is None
+
