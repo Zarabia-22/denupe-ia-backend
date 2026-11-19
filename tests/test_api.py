@@ -180,7 +180,7 @@ def test_listar_entidades_disponibles_endpoint_para_categoria_municipal():
 def test_listar_entidades_disponibles_no_expone_categoria_no_habilitada():
     with TestClient(app) as cliente:
         response = cliente.get("/api/entidades/disponibles", params={
-            "categoria": "Agua y saneamiento",
+            "categoria": "Vialidad e infraestructura",
             "departamento": "Lima",
             "provincia": "Lima",
             "distrito": "Miraflores",

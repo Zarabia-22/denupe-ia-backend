@@ -322,9 +322,13 @@ def _sugerir_sedapal(
             },
         },
         motivo=(
-            "El distrito está dentro del ámbito de responsabilidad de SEDAPAL para Lima y Callao "
-            "y el texto describe una incidencia de agua potable o alcantarillado. La cobertura "
-            "efectiva del predio y la conexión al servicio deben confirmarse con SEDAPAL."
+            "El distrito está dentro del ámbito de responsabilidad de SEDAPAL para Lima y Callao. "
+            + (
+                "El texto describe una incidencia de agua potable o alcantarillado. "
+                if exigir_senal_textual else
+                "La categoría corresponde a agua y saneamiento; confirma que el predio está conectado al servicio. "
+            )
+            + "La cobertura efectiva del predio debe confirmarse con SEDAPAL."
         ),
     )
 
