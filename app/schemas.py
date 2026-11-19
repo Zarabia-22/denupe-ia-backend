@@ -42,3 +42,9 @@ class EntidadSalida(BaseModel):
     sugerida: bool
     entidad: EntidadPublica | None = None
     motivo: str
+
+
+class EntidadesDisponiblesSalida(BaseModel):
+    """Instituciones que pueden elegirse manualmente tras validar competencia."""
+    entidades: list[EntidadPublica] = Field(default_factory=list)
+    motivo: str = "Las instituciones se filtran por categoría y jurisdicción."
