@@ -435,3 +435,67 @@ def test_arcgis_rechaza_estructura_invalida(monkeypatch):
     monkeypatch.setattr(entidades, "urlopen", lambda url, timeout: io.BytesIO(b'{"features":[{}]}'))
     with pytest.raises(RuntimeError, match="resultado inválido"):
         entidades._arcgis_query(2, {})
+
+
+
+def test_pnp_colapsa_features_duplicadas_de_la_misma_jurisdiccion(monkeypatch):
+    from app import entidades
+
+    def fake_query(layer, params):
+        if layer == 2:
+            return [
+                {"cod_cpnp": "1234", "comisaria": "Miraflores"},
+                {"cod_cpnp": "1234", "comisaria": "Miraflores - registro duplicado"},
+            ]
+        return [{"cod_cpnp": "1234", "comisaria": "Miraflores", "distrito": "Miraflores"}]
+
+    monkeypatch.setattr(entidades, "_arcgis_query", fake_query)
+    denuncia = entrada(categoria="Seguridad ciudadana", titulo="Robo en la calle",
+        descripcion="Reporto un robo cerca del parque.", latitud=-12.12, longitud=-77.03)
+    salida = sugerir_entidad(denuncia)
+    assert salida.sugerida is True
+    assert salida.entidad.id == "pnp-1234"
+
+
+def test_pnp_no_colapsa_jurisdicciones_con_codigos_distintos(monkeypatch):
+    from app import entidades
+
+    monkeypatch.setattr(entidades, "_arcgis_query", lambda layer, params: (
+        [{"cod_cpnp": "1234"}, {"cod_cpnp": "5678"}] if layer == 2 else []
+    ))
+    denuncia = entrada(categoria="Seguridad ciudadana", titulo="Robo en la calle",
+        descripcion="Reporto un robo cerca del parque.", latitud=-12.12, longitud=-77.03)
+    salida = sugerir_entidad(denuncia)
+    assert salida.sugerida is False
+    assert salida.entidad is None
+
+
+def test_alumbrado_colapsa_poligonos_duplicados_de_la_misma_empresa(monkeypatch):
+    from app import entidades
+
+    monkeypatch.setattr(entidades, "_arcgis_query_osinergmin", lambda layer, params: [
+        {"CODEMP": "LDS"}, {"CODEMP": "LDS"}
+    ])
+    denuncia = entrada(categoria="Alumbrado público", titulo="Luminaria apagada",
+        descripcion="El poste de alumbrado público no funciona.", latitud=-12.12, longitud=-77.03)
+    salida = sugerir_entidad(denuncia)
+    assert salida.sugerida is True
+    assert salida.entidad.id == "electrica-lds"
+
+
+def test_arcgis_reintenta_ante_timeout_transitorio(monkeypatch):
+    import io
+    from socket import timeout as SocketTimeout
+    from app import entidades
+
+    llamadas = {"total": 0}
+    def fake_urlopen(url, timeout):
+        llamadas["total"] += 1
+        if llamadas["total"] == 1:
+            raise SocketTimeout("timeout temporal")
+        return io.BytesIO(b'{"features":[{"attributes":{"cod_cpnp":"123"}}]}')
+
+    monkeypatch.setattr(entidades, "urlopen", fake_urlopen)
+    monkeypatch.setattr(entidades, "ARCGIS_RETRIES", 1)
+    assert entidades._arcgis_query(2, {}) == [{"cod_cpnp": "123"}]
+    assert llamadas["total"] == 2

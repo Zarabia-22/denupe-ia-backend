@@ -75,6 +75,7 @@ def cargar_directorio() -> list[dict]:
 
 
 MAX_ARCGIS_RESPONSE_BYTES = 1_048_576
+ARCGIS_RETRIES = max(0, int(os.getenv("ARCGIS_RETRIES", "2")))
 
 
 def _leer_atributos_arcgis(response, servicio: str) -> list[dict]:
@@ -98,14 +99,35 @@ def _leer_atributos_arcgis(response, servicio: str) -> list[dict]:
     return atributos
 
 
+def _consultar_arcgis(url: str, timeout: float, servicio: str) -> list[dict]:
+    """Consulta ArcGIS con reintentos acotados ante fallos transitorios."""
+    ultimo_error = None
+    for intento in range(ARCGIS_RETRIES + 1):
+        try:
+            with urlopen(url, timeout=timeout) as response:
+                return _leer_atributos_arcgis(response, servicio)
+        except (URLError, HTTPError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            ultimo_error = exc
+            if intento < ARCGIS_RETRIES:
+                from time import sleep
+                sleep(0.15 * (2 ** intento))
+    raise RuntimeError(f"No se pudo consultar el servicio geográfico oficial de {servicio}") from ultimo_error
+
+
+def _unicos_por_atributo(registros: list[dict], atributo: str) -> list[dict]:
+    """Colapsa features duplicadas de una misma entidad, sin ocultar jurisdicciones distintas."""
+    unicos = {}
+    for registro in registros:
+        valor = str(registro.get(atributo) or "").strip().casefold()
+        if valor:
+            unicos.setdefault(valor, registro)
+    return list(unicos.values())
+
+
 def _arcgis_query(layer: int, params: dict) -> list[dict]:
     query = {"f": "json", "outFields": "*", "returnGeometry": "false", "resultRecordCount": 2, **params}
     url = f"{PNP_MAPSERVER}/{layer}/query?{urlencode(query)}"
-    try:
-        with urlopen(url, timeout=PNP_TIMEOUT) as response:
-            return _leer_atributos_arcgis(response, "MININTER")
-    except (URLError, HTTPError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise RuntimeError("No se pudo consultar el servicio geográfico oficial de MININTER") from exc
+    return _consultar_arcgis(url, PNP_TIMEOUT, "MININTER")
 
 
 def _sugerir_comisaria_por_punto(entrada: EntidadEntrada) -> EntidadSalida:
@@ -125,7 +147,7 @@ def _sugerir_comisaria_por_punto(entrada: EntidadEntrada) -> EntidadSalida:
         "returnGeometry": "false",
     }
     try:
-        jurisdicciones = _arcgis_query(2, spatial)
+        jurisdicciones = _unicos_por_atributo(_arcgis_query(2, spatial), "cod_cpnp")
         if len(jurisdicciones) != 1:
             return EntidadSalida(sugerida=False, entidad=None, motivo="La ubicación no intersecta una única jurisdicción policial identificable. Se requiere revisión manual.")
         attrs = jurisdicciones[0]
@@ -134,7 +156,10 @@ def _sugerir_comisaria_por_punto(entrada: EntidadEntrada) -> EntidadSalida:
         if not codigo or not nombre:
             return EntidadSalida(sugerida=False, entidad=None, motivo="La capa de jurisdicciones no devolvió identificadores suficientes de la comisaría.")
         # Confirmar que el código también existe en la capa de comisarías (puntos operativos publicados).
-        activos = _arcgis_query(0, {"where": f"cod_cpnp='{codigo.replace(chr(39), chr(39)*2)}'", "outFields": "comisaria,cod_cpnp,departamento,provincia,distrito", "returnGeometry": "false"})
+        activos = _unicos_por_atributo(
+            _arcgis_query(0, {"where": f"cod_cpnp='{codigo.replace(chr(39), chr(39)*2)}'", "outFields": "comisaria,cod_cpnp,departamento,provincia,distrito", "returnGeometry": "false"}),
+            "cod_cpnp",
+        )
         if len(activos) != 1:
             return EntidadSalida(sugerida=False, entidad=None, motivo="La comisaría de la jurisdicción no pudo confirmarse en la capa operativa de comisarías. Se requiere revisión manual.")
         activo = activos[0]
@@ -164,11 +189,7 @@ def _arcgis_query_osinergmin(layer: int, params: dict) -> list[dict]:
     """Consulta capas públicas de concesiones eléctricas de OSINERGMIN."""
     query = {"f": "json", "outFields": "*", "returnGeometry": "false", "resultRecordCount": 2, **params}
     url = f"{OSINERGMIN_MAPSERVER}/{layer}/query?{urlencode(query)}"
-    try:
-        with urlopen(url, timeout=OSINERGMIN_TIMEOUT) as response:
-            return _leer_atributos_arcgis(response, "OSINERGMIN")
-    except (URLError, HTTPError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise RuntimeError("No se pudo consultar el mapa oficial de concesiones eléctricas de OSINERGMIN") from exc
+    return _consultar_arcgis(url, OSINERGMIN_TIMEOUT, "OSINERGMIN")
 
 
 def _sugerir_concesionaria_electrica(entrada: EntidadEntrada) -> EntidadSalida:
@@ -200,7 +221,7 @@ def _sugerir_concesionaria_electrica(entrada: EntidadEntrada) -> EntidadSalida:
         "SERSA": "SERS", "EIHC": "Eilhicha",
     }
     try:
-        concesiones = _arcgis_query_osinergmin(33, spatial)
+        concesiones = _unicos_por_atributo(_arcgis_query_osinergmin(33, spatial), "CODEMP")
         if len(concesiones) != 1:
             return EntidadSalida(
                 sugerida=False, entidad=None,
