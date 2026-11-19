@@ -75,7 +75,7 @@ def predecir(denuncia: DenunciaEntrada) -> SugerenciaSalida:
     tags=["Derivación inteligente"],
 )
 def predecir_entidad(denuncia: EntidadEntrada) -> EntidadSalida:
-    """Recomienda una entidad solo si existe coincidencia territorial verificable."""
+    """Devuelve una entidad pública verificada o la bandeja interna de revisión."""
     return sugerir_entidad(denuncia)
 
 @app.get(
@@ -91,7 +91,7 @@ def entidades_disponibles(
     latitud: float | None = Query(default=None, ge=-90, le=90),
     longitud: float | None = Query(default=None, ge=-180, le=180),
 ) -> EntidadesDisponiblesSalida:
-    """Lista opciones manuales validadas para la categoría y ubicación."""
+    """Lista entidades verificadas o el destino interno de revisión como respaldo."""
     if (latitud is None) != (longitud is None):
         raise HTTPException(status_code=422, detail="latitud y longitud deben enviarse juntas")
     items = listar_entidades_disponibles(

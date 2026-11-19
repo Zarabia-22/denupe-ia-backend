@@ -469,11 +469,11 @@ def listar_entidades_disponibles(
     latitud: float | None = None,
     longitud: float | None = None,
 ) -> list[dict]:
-    """Devuelve opciones manuales con competencia verificable para el lugar.
+    """Devuelve entidades verificadas o revisión interna cuando no hay coincidencia.
 
-    No usa similitud de texto ni inventa alternativas: las municipalidades se
-    filtran por el directorio oficial y las entidades geoespaciales se incluyen
-    únicamente cuando el punto permite resolver una coincidencia única.
+    No inventa instituciones: los organismos públicos se filtran por catálogo y
+    competencia, y las entidades geoespaciales requieren una coincidencia única.
+    Si no hay una opción externa verificable, ofrece la bandeja interna de revisión.
     """
     cat = normalizar(categoria)
     dep = normalizar(departamento)

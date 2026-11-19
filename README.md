@@ -116,7 +116,7 @@ Ejemplo de solicitud:
 }
 ```
 
-La respuesta contiene `sugerida`, `entidad` (identificador, nombre, tipo, datos de contacto disponibles y ámbito territorial) y `motivo`. Si no hay coincidencia o existen candidatos equivalentes, devuelve `sugerida: false` y no asigna una institución. La selección y derivación final deben seguir bajo control del ciudadano o del personal responsable.
+La respuesta contiene `sugerida`, `entidad` (identificador, nombre, tipo, datos de contacto disponibles y ámbito territorial) y `motivo`. Si no hay coincidencia o existen candidatos equivalentes, devuelve el destino interno `revision_competencia`; no lo presenta como institución pública externa. La selección y derivación final deben seguir bajo control del ciudadano o del personal responsable.
 
 **Estado del directorio:** `data/entidades_publicas.json` contiene 50 registros municipales de Lima Metropolitana y Callao. Los registros tienen nombre y ámbito territorial contrastados con el directorio del INEI 2026. La matriz habilita únicamente Limpieza y residuos y Parques y áreas verdes; el campo `verificado_competencias` no debe interpretarse como autorización para las demás categorías. Las 46 referencias PNP históricas están separadas y deshabilitadas. La lógica municipal es una coincidencia territorial y temática basada en catálogo; no es un nuevo modelo de aprendizaje automático ni una validación legal individual de cada incidente.
 

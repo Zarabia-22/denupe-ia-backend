@@ -75,6 +75,6 @@ class EntidadSalida(BaseModel):
     motivo: str
 
 class EntidadesDisponiblesSalida(BaseModel):
-    """Instituciones que pueden elegirse manualmente tras validar competencia."""
+    """Destinos de derivación: entidades verificadas o revisión interna."""
     entidades: list[EntidadPublica] = Field(default_factory=list)
     motivo: str = "Las instituciones se filtran por categoría y jurisdicción."
