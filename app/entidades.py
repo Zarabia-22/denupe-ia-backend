@@ -196,10 +196,44 @@ def _sugerir_concesionaria_electrica(entrada: EntidadEntrada) -> EntidadSalida:
             motivo="No fue posible validar el área de concesión eléctrica con el servicio oficial de OSINERGMIN. No se asignó una empresa; se requiere revisión manual.",
         )
 
+
+def _sugerir_atu(entrada: EntidadEntrada) -> EntidadSalida:
+    """Recomienda ATU solo para la subcategoría explícita de transporte público urbano."""
+    departamento = normalizar(entrada.departamento)
+    provincia = normalizar(entrada.provincia)
+    ambitos_validos = {
+        ("lima", "lima"),
+        ("callao", "callao"),
+    }
+    if (departamento, provincia) not in ambitos_validos:
+        return EntidadSalida(
+            sugerida=False, entidad=None,
+            motivo="La denuncia está fuera del ámbito territorial de Lima y Callao de la ATU. Se requiere revisión manual.",
+        )
+    return EntidadSalida(
+        sugerida=True,
+        entidad={
+            "id": "atu-lima-callao",
+            "nombre": "Autoridad de Transporte Urbano para Lima y Callao (ATU)",
+            "tipo": "autoridad_transporte_urbano",
+            "direccion": None,
+            "telefono": None,
+            "sitio_web": "https://www.gob.pe/atu",
+            "ambito": {
+                "departamento": entrada.departamento,
+                "provincia": entrada.provincia,
+                "distrito": entrada.distrito,
+            },
+        },
+        motivo="La categoría seleccionada corresponde específicamente al transporte público urbano de pasajeros y la provincia indicada está dentro del ámbito de la ATU. La recomendación requiere revisión humana del tipo de incidente.",
+    )
+
 def sugerir_entidad(entrada: EntidadEntrada) -> EntidadSalida:
     categoria = normalizar(entrada.categoria)
     if categoria == "alumbrado publico":
         return _sugerir_concesionaria_electrica(entrada)
+    if categoria == "transporte publico urbano de pasajeros":
+        return _sugerir_atu(entrada)
     if categoria in {"seguridad ciudadana", "seguridad ciudadana delitos", "delitos", "robo", "asalto", "violencia", "actividad sospechosa"}:
         return _sugerir_comisaria_por_punto(entrada)
 
