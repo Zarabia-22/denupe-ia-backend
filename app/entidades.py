@@ -80,7 +80,12 @@ def resolver_distrito_por_punto(latitud: float, longitud: float) -> dict:
 
 
 def catalogo_distrital_por_categoria(departamento: str, provincia: str, distrito: str) -> dict:
-    """Matriz de ocho categorías y su ruta competente para un distrito cubierto."""
+    """Relaciona cada categoría con entidades públicas del distrito y rutas sectoriales.
+
+    La matriz siempre contiene al menos una entidad candidata por categoría. Para
+    competencias que dependen del punto o del tipo de vía, la entidad se presenta
+    como responsable sectorial a resolver, nunca como jurisdicción ya confirmada.
+    """
     dep, prov, dis = map(normalizar, (departamento, provincia, distrito))
     municipios = [
         item for item in cargar_directorio()
@@ -93,23 +98,168 @@ def catalogo_distrital_por_categoria(departamento: str, provincia: str, distrito
     if len(municipios) != 1:
         raise ValueError("El distrito no está registrado de forma única en la cobertura actual.")
     muni = municipios[0]
-    ambito = {"departamento": muni["departamento"], "provincia": muni["provincia"], "distrito": muni["distrito"]}
-    municipalidad = {"id": muni["id"], "nombre": muni["nombre"], "tipo": muni["tipo"], "ambito": ambito}
-    revision = {"id": "revision-competencia", "nombre": "Revisión de competencia (DenuPe)", "tipo": "revision_competencia", "ambito": ambito}
+    ambito = {
+        "departamento": muni["departamento"],
+        "provincia": muni["provincia"],
+        "distrito": muni["distrito"],
+    }
+    municipalidad = {
+        "id": muni["id"], "nombre": muni["nombre"],
+        "tipo": muni["tipo"], "ambito": ambito,
+        "rol": "entidad_local_del_distrito",
+    }
     lima_callao = (dep, prov) in {("lima", "lima"), ("callao", "callao")}
-    sedapal = {"id": "sedapal-lima-callao", "nombre": "Servicio de Agua Potable y Alcantarillado de Lima (SEDAPAL)", "tipo": "empresa_saneamiento", "ambito": ambito}
-    categorias = [
-        {"categoria": "Alumbrado público", "ruta": "concesion_electrica_por_poligono", "requiere_gps": True, "entidades": [], "respaldo": revision, "estado": "resolucion_geografica", "nota": "El punto debe intersectar exactamente un polígono oficial de concesión de OSINERGMIN."},
-        {"categoria": "Seguridad ciudadana", "ruta": "comisaria_pnp_por_jurisdiccion", "requiere_gps": True, "entidades": [], "respaldo": revision, "estado": "resolucion_geografica", "nota": "El punto debe resolver una única jurisdicción PNP y su código debe existir en la capa operativa."},
-        {"categoria": "Limpieza y residuos", "ruta": "municipalidad_distrital", "requiere_gps": False, "entidades": [municipalidad], "respaldo": revision, "estado": "competencia_local_verificada"},
-        {"categoria": "Agua y saneamiento", "ruta": "empresa_saneamiento", "requiere_gps": False, "entidades": [sedapal] if lima_callao else [], "respaldo": revision, "estado": "ambito_territorial_documentado" if lima_callao else "revision_requerida", "nota": "Confirmar cobertura efectiva y conexión del predio a SEDAPAL." if lima_callao else "No hay una empresa de saneamiento configurada para este ámbito."},
-        {"categoria": "Tránsito y transporte", "ruta": "clasificacion_por_tipo_de_incidente", "requiere_gps": True, "entidades": [], "respaldo": revision, "estado": "revision_requerida", "nota": "Distinguir transporte público urbano (ATU), tránsito local, semaforización y vías de otra jerarquía."},
-        {"categoria": "Parques y áreas verdes", "ruta": "municipalidad_distrital", "requiere_gps": False, "entidades": [municipalidad], "respaldo": revision, "estado": "competencia_local_condicionada", "nota": "Confirmar que el parque o jardín sea público y de administración local."},
-        {"categoria": "Vialidad e infraestructura", "ruta": "titularidad_del_tramo_vial", "requiere_gps": True, "entidades": [], "respaldo": revision, "estado": "revision_requerida", "nota": "Identificar jerarquía y administración del tramo; no asignar por distrito solamente."},
-        {"categoria": "Otros", "ruta": "clasificacion_humana", "requiere_gps": False, "entidades": [], "respaldo": revision, "estado": "revision_requerida"},
-    ]
-    return {"ubigeo": muni.get("codigo_ubigeo"), "departamento": muni["departamento"], "provincia": muni["provincia"], "distrito": muni["distrito"], "categorias": categorias, "total_categorias": len(categorias)}
+    municipalidad_provincial = (
+        {"id": "mml-150101", "nombre": "Municipalidad Metropolitana de Lima",
+         "tipo": "municipalidad_provincial", "ambito": ambito,
+         "rol": "autoridad_vial_y_de_transito_metropolitano"}
+        if (dep, prov) == ("lima", "lima") else
+        {"id": "mpc-070101", "nombre": "Municipalidad Provincial del Callao",
+         "tipo": "municipalidad_provincial", "ambito": ambito,
+         "rol": "autoridad_vial_y_de_transito_provincial"}
+        if (dep, prov) == ("callao", "callao") else municipalidad
+    )
+    pnp = {
+        "id": "pnp-jurisdiccion-gps",
+        "nombre": "Policía Nacional del Perú — comisaría competente por jurisdicción GPS",
+        "tipo": "comisaria_pnp_por_resolver",
+        "ambito": ambito,
+        "rol": "entidad_sectorial_resuelta_por_poligono_pnp",
+    }
+    electrica = {
+        "id": "concesionaria-electrica-gps",
+        "nombre": "Empresa concesionaria eléctrica que cubre el punto GPS",
+        "tipo": "empresa_concesionaria_electrica_por_resolver",
+        "ambito": ambito,
+        "rol": "entidad_sectorial_resuelta_por_poligono_osinergmin",
+    }
+    sedapal = {
+        "id": "sedapal-lima-callao",
+        "nombre": "Servicio de Agua Potable y Alcantarillado de Lima (SEDAPAL)",
+        "tipo": "empresa_saneamiento",
+        "ambito": ambito,
+        "rol": "empresa_operadora_del_ambito_documentado",
+    }
+    atu = {
+        "id": "atu-lima-callao",
+        "nombre": "Autoridad de Transporte Urbano para Lima y Callao (ATU)",
+        "tipo": "autoridad_transporte_urbano",
+        "ambito": ambito,
+        "rol": "sistema_integrado_de_transporte_urbano_de_personas",
+    }
+    mtc = {
+        "id": "mtc-red-vial-nacional",
+        "nombre": "Ministerio de Transportes y Comunicaciones (MTC) / Provías, según tramo",
+        "tipo": "autoridad_vial_nacional",
+        "ambito": ambito,
+        "rol": "titular_o_gestor_de_red_vial_nacional",
+    }
+    gobierno_regional = {
+        "id": "gobierno-regional-lima",
+        "nombre": "Gobierno Regional correspondiente, según jurisdicción",
+        "tipo": "gobierno_regional",
+        "ambito": ambito,
+        "rol": "titular_o_gestor_de_red_vial_departamental",
+    }
+    revision = {
+        "id": "revision-competencia",
+        "nombre": "Revisión de competencia (DenuPe)",
+        "tipo": "revision_competencia",
+        "ambito": ambito,
+        "rol": "respaldo_interno_no_es_entidad_publica",
+    }
 
+    categorias = [
+        {
+            "categoria": "Alumbrado público",
+            "ruta": "concesion_electrica_por_poligono",
+            "requiere_gps": True,
+            "entidades": [electrica],
+            "entidad_principal": electrica,
+            "respaldo": municipalidad,
+            "estado": "entidad_sectorial_preconfigurada_pendiente_de_resolucion_gps",
+            "nota": "La concesionaria se identifica intersectando el punto GPS con el polígono oficial de concesiones de OSINERGMIN; la municipalidad queda como canal local de apoyo, no como sustituto de la concesionaria.",
+        },
+        {
+            "categoria": "Seguridad ciudadana",
+            "ruta": "comisaria_pnp_por_jurisdiccion",
+            "requiere_gps": True,
+            "entidades": [pnp],
+            "entidad_principal": pnp,
+            "respaldo": municipalidad,
+            "estado": "entidad_sectorial_preconfigurada_pendiente_de_resolucion_gps",
+            "nota": "La comisaría concreta se resuelve con la jurisdicción policial del punto GPS; serenazgo municipal es apoyo preventivo y no reemplaza a la PNP.",
+        },
+        {
+            "categoria": "Limpieza y residuos",
+            "ruta": "municipalidad_distrital",
+            "requiere_gps": False,
+            "entidades": [municipalidad],
+            "entidad_principal": municipalidad,
+            "respaldo": revision,
+            "estado": "competencia_local_verificada",
+        },
+        {
+            "categoria": "Agua y saneamiento",
+            "ruta": "empresa_operadora_de_saneamiento",
+            "requiere_gps": False,
+            "entidades": [sedapal] if lima_callao else [municipalidad],
+            "entidad_principal": sedapal if lima_callao else municipalidad,
+            "respaldo": revision,
+            "estado": "operador_territorial_preconfigurado" if lima_callao else "municipalidad_como_punto_de_entrada_requiere_identificar_operador",
+            "nota": "En Lima y Callao se propone SEDAPAL, sujeto a confirmar que el predio y la zona estén dentro de su cobertura efectiva. Fuera de ese ámbito, la municipalidad distrital queda como punto de entrada para identificar la EPS/JASS/operador real; no se afirma que sea la prestadora.",
+        },
+        {
+            "categoria": "Tránsito y transporte",
+            "ruta": "clasificacion_por_tipo_de_incidente",
+            "requiere_gps": True,
+            "entidades": ([atu, municipalidad_provincial, municipalidad] if lima_callao else [municipalidad_provincial, municipalidad]),
+            "entidad_principal": atu if lima_callao else municipalidad_provincial,
+            "respaldo": municipalidad,
+            "estado": "entidades_sectoriales_preconfiguradas_requiere_clasificacion",
+            "nota": "ATU para transporte público urbano de pasajeros en Lima/Callao; municipalidad provincial/metropolitana para gestión del tránsito y red vial bajo su competencia; municipalidad distrital para asuntos locales. La incidencia concreta determina cuál corresponde.",
+        },
+        {
+            "categoria": "Parques y áreas verdes",
+            "ruta": "municipalidad_distrital",
+            "requiere_gps": False,
+            "entidades": [municipalidad],
+            "entidad_principal": municipalidad,
+            "respaldo": revision,
+            "estado": "competencia_local_condicionada",
+            "nota": "Aplicable a parques y jardines públicos bajo administración local; verificar titularidad o administración del espacio.",
+        },
+        {
+            "categoria": "Vialidad e infraestructura",
+            "ruta": "titularidad_y_jerarquia_del_tramo_vial",
+            "requiere_gps": True,
+            "entidades": [mtc, gobierno_regional, municipalidad_provincial, municipalidad],
+            "entidad_principal": municipalidad_provincial,
+            "respaldo": municipalidad,
+            "estado": "entidades_preconfiguradas_requiere_identificar_tramo",
+            "nota": "Se relacionan MTC/Provías (red nacional), Gobierno Regional (red departamental), municipalidad provincial (red provincial) y municipalidad distrital (vías urbanas/locales). El GPS debe cruzarse con inventario vial y concesiones antes de seleccionar la entidad final.",
+        },
+        {
+            "categoria": "Otros",
+            "ruta": "municipalidad_como_ventanilla_de_orientacion",
+            "requiere_gps": False,
+            "entidades": [municipalidad],
+            "entidad_principal": municipalidad,
+            "respaldo": revision,
+            "estado": "entidad_de_entrada_preconfigurada_requiere_clasificacion",
+            "nota": "La municipalidad distrital es el primer punto de recepción/orientación local; no se presume que sea la autoridad final si el asunto pertenece a otro sector.",
+        },
+    ]
+    return {
+        "ubigeo": muni.get("codigo_ubigeo"),
+        "departamento": muni["departamento"],
+        "provincia": muni["provincia"],
+        "distrito": muni["distrito"],
+        "categorias": categorias,
+        "total_categorias": len(categorias),
+        "categorias_con_entidad_relacionada": sum(1 for item in categorias if item["entidades"]),
+        "cobertura": "Lima Metropolitana y Provincia Constitucional del Callao (50 distritos configurados)",
+    }
 
 def normalizar(valor: str) -> str:
     valor = unicodedata.normalize("NFKD", valor.casefold())
