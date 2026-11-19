@@ -431,3 +431,43 @@ def test_catalogo_manual_no_ofrece_categoria_sin_competencia_verificada(tmp_path
 
     assert disponibles == []
     cargar_directorio.cache_clear()
+
+
+
+def test_catalogo_manual_incluye_comisaria_solo_con_jurisdiccion_gps(monkeypatch):
+    from app import entidades
+
+    def fake_query(layer, params):
+        if layer == 2:
+            return [{"cod_cpnp": "1234", "comisaria": "Miraflores"}]
+        if layer == 0:
+            return [{
+                "cod_cpnp": "1234", "comisaria": "Miraflores",
+                "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
+            }]
+        return []
+
+    monkeypatch.setattr(entidades, "_arcgis_query", fake_query)
+    disponibles = entidades.listar_entidades_disponibles(
+        "Seguridad ciudadana", "Lima", "Lima", "Miraflores", -12.12, -77.03
+    )
+
+    assert len(disponibles) == 1
+    assert disponibles[0]["id"] == "pnp-1234"
+    assert disponibles[0]["tipo"] == "comisaria_pnp"
+
+
+def test_catalogo_manual_incluye_concesionaria_solo_con_poligono_unico(monkeypatch):
+    from app import entidades
+
+    monkeypatch.setattr(
+        entidades, "_arcgis_query_osinergmin",
+        lambda layer, params: [{"CODEMP": "LDS"}],
+    )
+    disponibles = entidades.listar_entidades_disponibles(
+        "Alumbrado público", "Lima", "Lima", "Miraflores", -12.12, -77.03
+    )
+
+    assert len(disponibles) == 1
+    assert disponibles[0]["id"] == "electrica-lds"
+    assert disponibles[0]["nombre"] == "Luz del Sur"
