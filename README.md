@@ -233,3 +233,66 @@ Los archivos JSON se validan al cargarse: estructura, campos obligatorios, tipos
 
 ### Seguridad pendiente antes de exposición pública
 Este backend no valida identidad de usuario ni JWT. CORS no es autenticación y una clave estática embebida en Flutter puede extraerse. Antes de abrir el endpoint públicamente, integrar validación de tokens del proveedor de identidad de DenuPe o colocar un gateway que autentique y limite tráfico. No habilitar derivación automática: las respuestas siguen siendo sugerencias y requieren decisión humana.
+
+
+## Catálogo preconfigurado por distrito y resolución GPS
+
+La cobertura inicial mantiene los **50 distritos de Lima Metropolitana y Callao**. El endpoint GET /api/territorio/catalogo-distrital expone una matriz de las ocho categorías para el distrito solicitado. Puede recibir el distrito administrativo o, preferentemente, latitud y longitud; cuando se envían coordenadas, el backend resuelve el distrito por intersección del punto con la capa poligonal distrital (capa 3) y valida el UBIGEO contra el catálogo local. El GPS prevalece sobre cualquier distrito escrito por el cliente.
+
+Ejemplos:
+
+```http
+GET /api/territorio/resolver-distrito?latitud=-12.12&longitud=-77.03
+GET /api/territorio/catalogo-distrital?latitud=-12.12&longitud=-77.03
+GET /api/territorio/catalogo-distrital?departamento=Lima&provincia=Lima&distrito=Miraflores
+```
+
+La matriz configura las rutas para todas las categorías: municipalidad para limpieza y parques bajo sus condiciones locales; SEDAPAL para agua/saneamiento dentro del ámbito documentado de Lima y Callao; resolución espacial por GPS para PNP y concesionarias eléctricas; y revisión de competencia para tránsito genérico, vialidad sin titularidad de tramo verificada y Otros. Una ruta preconfigurada no significa que cualquier entidad sea competente para cualquier incidente: los casos sin prueba territorial o sectorial suficiente permanecen en revisión.
+
+Fuente de límites distritales: servicio cartográfico del Estado, capa 3 Límite Distrital, atributos UBIGEO, NOMBDEP, NOMBPROV y NOMBDIST: https://ws.mineco.gob.pe/server/rest/services/cartografia_base_limites/MapServer/layers. La fuente publica polígonos en WGS84 (EPSG:4326). La plataforma Geo Perú advierte que los límites mostrados son referenciales y atribuidos al INEI; para controversias de demarcación debe prevalecer la delimitación oficial inscrita en RENLIM. La resolución GPS del PMV es una identificación operativa de distrito, no una determinación legal de límites.
+
+Variables opcionales:
+- DISTRITOS_MAPSERVER_URL: URL base del MapServer de límites distritales.
+- DISTRITOS_TIMEOUT_SECONDS: timeout de consulta (por defecto 5 segundos).
+
+Si la coordenada no cae en un único polígono, el UBIGEO no es válido, el servicio no responde o el distrito no forma parte de los 50 configurados, el endpoint no inventa el distrito y devuelve un error explícito para que la app solicite corrección o selección manual.
+
+
+### Relación obligatoria entidad–categoría por distrito (actualización)
+
+El endpoint `GET /api/territorio/catalogo-distrital` ahora devuelve una entidad principal relacionada con **cada una de las ocho categorías** en cada uno de los 50 distritos configurados de Lima Metropolitana y Callao. Cada categoría incluye `entidades`, `entidad_principal`, `respaldo`, `ruta` y un `estado` que indica si la entidad ya está determinada o si requiere una resolución adicional.
+
+| Categoría | Entidad principal preconfigurada | Regla para seleccionar/confirmar |
+|---|---|---|
+| Alumbrado público | Concesionaria eléctrica del punto | GPS + polígono de concesión OSINERGMIN; municipalidad como apoyo local |
+| Seguridad ciudadana | PNP / comisaría de la jurisdicción | GPS + polígono PNP; serenazgo municipal es apoyo, no reemplazo de PNP |
+| Limpieza y residuos | Municipalidad del distrito | Competencia local para limpieza pública |
+| Agua y saneamiento | SEDAPAL en Lima/Callao; municipalidad como ventanilla de orientación fuera de ese ámbito | Confirmar cobertura efectiva y operador del predio |
+| Tránsito y transporte | ATU, municipalidad provincial/metropolitana y municipalidad distrital | Clasificar transporte público, tránsito local, semáforos y tipo de vía |
+| Parques y áreas verdes | Municipalidad del distrito | Confirmar que el espacio sea público y esté bajo administración local |
+| Vialidad e infraestructura | MTC/Provías, Gobierno Regional, municipalidad provincial o distrital | GPS + jerarquía, titularidad, concesión o delegación del tramo |
+| Otros | Municipalidad del distrito como primer punto de orientación | Clasificación posterior; no se presume que sea la autoridad sectorial final |
+
+**Importante:** “relacionada” no significa que todas las instituciones sean competentes para cualquier incidente de esa categoría. En alumbrado, PNP, tránsito y vialidad, el catálogo preconfigura la familia de entidades y la regla de resolución; la institución concreta depende del punto GPS y del tipo de hecho. En agua se debe confirmar el operador efectivo. Para “Otros”, la municipalidad es una ventanilla inicial de orientación, no una atribución universal de competencia. `revision_competencia` continúa existiendo únicamente como bandeja interna de respaldo de DenuPe y nunca se muestra como entidad pública ni como entidad principal de la matriz.
+
+La cobertura de esta matriz sigue limitada a los 50 distritos configurados de Lima Metropolitana y Callao. No se debe afirmar cobertura nacional hasta incorporar y validar directorios municipales y operadores de saneamiento, electricidad, PNP y autoridades viales de las demás regiones. Se añadió una prueba que recorre los 50 registros y exige ocho de ocho categorías con entidad principal relacionada.
+
+
+### Catálogo territorial nacional en InsForge (integración en curso)
+
+El servicio resuelve primero las coordenadas contra el polígono distrital oficial y obtiene el UBIGEO. Con ese código consulta las RPC de InsForge:
+
+- `consultar_matriz_distrital_por_ubigeo(p_ubigeo)`: exige exactamente ocho relaciones, una por categoría.
+- `consultar_entidades_por_ubigeo(p_ubigeo, p_categoria_code)`: recupera el resolutor sectorial de la categoría.
+- `GET /api/territorio/catalogo-distrital?latitud=...&longitud=...`: devuelve la matriz solo con GPS.
+- `GET /api/territorio/resolver-distrito?latitud=...&longitud=...`: devuelve el UBIGEO validado y confirma que existe la matriz completa.
+
+Configura en Render, como variables privadas del servicio:
+
+- `INSFORGE_URL`: URL base del proyecto InsForge.
+- `INSFORGE_API_KEY`: API Key administrativa `ik_...`; **solo en el backend**, nunca en Flutter ni en el repositorio.
+- `INSFORGE_TIMEOUT_SECONDS`: timeout de la consulta (por defecto 8 segundos).
+
+La integración falla de forma cerrada: si faltan credenciales, la RPC no responde o la matriz no contiene las ocho categorías, no devuelve un catálogo alternativo local ni asigna una entidad. La matriz contiene resolutores sectoriales, no nombres verificados de cada comisaría, EPS, concesionaria o titular vial. Para esos casos el servicio debe conservar la selección manual hasta confirmar la entidad concreta.
+
+**Importante:** antes de activar esta integración, aplica la migración del repositorio principal en un entorno InsForge de pruebas y comprueba las dos RPC. La migración debe usar el rol administrativo `project_admin` de InsForge para la escritura confiable; no usa el rol `service_role` de Supabase. No se debe copiar la API Key al cliente móvil.

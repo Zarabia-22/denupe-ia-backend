@@ -681,3 +681,120 @@ def test_fallback_de_revision_es_explicito_y_no_se_presenta_como_entidad_externa
     ))
     assert salida.entidad.tipo == "revision_competencia"
     assert "no una entidad pública externa" in salida.motivo
+
+
+def test_matriz_distrital_preconfigura_las_ocho_categorias():
+    from app.entidades import catalogo_distrital_por_categoria
+
+    matriz = catalogo_distrital_por_categoria("Lima", "Lima", "Miraflores")
+    assert matriz["total_categorias"] == 8
+    assert {item["categoria"] for item in matriz["categorias"]} == {
+        "Alumbrado público", "Seguridad ciudadana", "Limpieza y residuos",
+        "Agua y saneamiento", "Tránsito y transporte", "Parques y áreas verdes",
+        "Vialidad e infraestructura", "Otros",
+    }
+    limpieza = next(x for x in matriz["categorias"] if x["categoria"] == "Limpieza y residuos")
+    assert limpieza["entidades"][0]["id"] == "mun-150122"
+    seguridad = next(x for x in matriz["categorias"] if x["categoria"] == "Seguridad ciudadana")
+    assert seguridad["requiere_gps"] is True
+
+
+def test_resolver_distrito_por_gps_usa_ubigeo_y_catalogo(monkeypatch):
+    from app import entidades
+
+    monkeypatch.setattr(entidades, "_arcgis_query_distritos", lambda params: [{
+        "UBIGEO": "150122", "NOMBDEP": "LIMA", "NOMBPROV": "LIMA", "NOMBDIST": "MIRAFLORES",
+    }])
+    territorio = entidades.resolver_distrito_por_punto(-12.12, -77.03)
+    assert territorio["ubigeo"] == "150122"
+    assert territorio["distrito"] == "Miraflores"
+
+
+def test_resolver_distrito_por_gps_se_abstiene_si_hay_dos_poligonos(monkeypatch):
+    import pytest
+    from app import entidades
+
+    monkeypatch.setattr(entidades, "_arcgis_query_distritos", lambda params: [
+        {"UBIGEO": "150122"}, {"UBIGEO": "150140"},
+    ])
+    with pytest.raises(RuntimeError, match="único polígono"):
+        entidades.resolver_distrito_por_punto(-12.12, -77.03)
+
+
+def test_post_recomendacion_usa_distrito_resuelto_por_gps(monkeypatch):
+    from app import main
+
+    monkeypatch.setattr(main, "resolver_distrito_por_punto", lambda lat, lon: {
+        "ubigeo": "150122", "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
+    })
+    monkeypatch.setattr(main, "consultar_matriz_distrital", lambda ubigeo: [{"categoria_code": code} for code in (
+        "alumbrado", "seguridad", "limpieza", "agua", "transito", "areas_verdes", "infraestructura", "otros"
+    )])
+    monkeypatch.setattr(main, "consultar_resolutor_categoria", lambda ubigeo, code: {
+        "requiere_gps": True, "asignar_solo_tras_gps": True, "entidad_nombre": "Municipalidad local"
+    })
+    denuncia = entrada(
+        distrito="San Isidro",
+        latitud=-12.12,
+        longitud=-77.03,
+    )
+    salida = main.predecir_entidad(denuncia)
+    assert salida.entidad.ambito["distrito"] == "Miraflores"
+
+
+def test_catalogo_disponible_usa_distrito_resuelto_por_gps(monkeypatch):
+    from app import main
+
+    monkeypatch.setattr(main, "resolver_distrito_por_punto", lambda lat, lon: {
+        "ubigeo": "150122", "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
+    })
+    monkeypatch.setattr(main, "consultar_resolutor_categoria", lambda ubigeo, code: {
+        "requiere_gps": True, "asignar_solo_tras_gps": True
+    })
+    salida = main.entidades_disponibles(
+        categoria="Limpieza y residuos",
+        departamento="Callao",
+        provincia="Callao",
+        distrito="Callao",
+        latitud=-12.12,
+        longitud=-77.03,
+    )
+    assert salida.entidades[0].ambito["distrito"] == "Miraflores"
+
+
+def test_catalogo_distrital_relaciona_entidad_con_las_ocho_categorias():
+    from app.entidades import catalogo_distrital_por_categoria
+
+    directorio = [
+        item for item in cargar_directorio()
+        if item.get("tipo") in {"municipalidad_distrital", "municipalidad_provincial"}
+        and item.get("verificado_nombre") is True
+    ]
+    assert len(directorio) == 50
+
+    for municipio in directorio:
+        catalogo = catalogo_distrital_por_categoria(
+            municipio["departamento"], municipio["provincia"], municipio["distrito"]
+        )
+        assert catalogo["total_categorias"] == 8
+        assert catalogo["categorias_con_entidad_relacionada"] == 8
+        for categoria in catalogo["categorias"]:
+            assert categoria["entidades"], categoria["categoria"]
+            assert categoria["entidad_principal"]["id"]
+            assert categoria["entidad_principal"]["nombre"]
+            assert categoria["entidad_principal"]["tipo"] != "revision_competencia"
+
+        limpieza = next(c for c in catalogo["categorias"] if c["categoria"] == "Limpieza y residuos")
+        assert limpieza["entidad_principal"]["id"] == municipio["id"]
+
+        parques = next(c for c in catalogo["categorias"] if c["categoria"] == "Parques y áreas verdes")
+        assert parques["entidad_principal"]["id"] == municipio["id"]
+
+
+def test_catalogo_distrital_no_presenta_revision_interna_como_entidad_publica():
+    from app.entidades import catalogo_distrital_por_categoria
+
+    catalogo = catalogo_distrital_por_categoria("Lima", "Lima", "Miraflores")
+    for categoria in catalogo["categorias"]:
+        assert all(e["tipo"] != "revision_competencia" for e in categoria["entidades"])
+        assert categoria["respaldo"]["tipo"] != "revision_competencia" or categoria["respaldo"]["id"] == "revision-competencia"

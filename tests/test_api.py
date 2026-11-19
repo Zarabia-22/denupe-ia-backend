@@ -162,32 +162,22 @@ def test_health_ready_valida_el_catalogo_de_entidades():
     assert response.json()["entidades_catalogo"] == 96
 
 
-def test_listar_entidades_disponibles_endpoint_para_categoria_municipal():
+def test_entidades_disponibles_exige_gps_antes_de_listar():
     with TestClient(app) as cliente:
         response = cliente.get("/api/entidades/disponibles", params={
             "categoria": "Limpieza y residuos",
-            "departamento": "Lima",
-            "provincia": "Lima",
-            "distrito": "Miraflores",
+            "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
         })
-    assert response.status_code == 200
-    data = response.json()
-    assert len(data["entidades"]) == 1
-    assert data["entidades"][0]["id"] == "mun-150122"
-    assert data["entidades"][0]["tipo"] == "municipalidad_distrital"
+    assert response.status_code == 422
 
 
-def test_listar_entidades_disponibles_no_expone_categoria_no_habilitada():
+def test_entidades_disponibles_no_expone_categoria_no_habilitada_sin_gps():
     with TestClient(app) as cliente:
         response = cliente.get("/api/entidades/disponibles", params={
             "categoria": "Vialidad e infraestructura",
-            "departamento": "Lima",
-            "provincia": "Lima",
-            "distrito": "Miraflores",
+            "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
         })
-    assert response.status_code == 200
-    assert len(response.json()["entidades"]) == 1
-    assert response.json()["entidades"][0]["tipo"] == "revision_competencia"
+    assert response.status_code == 422
 
 
 def test_listar_entidades_disponibles_rechaza_coordenadas_incompletas():
@@ -202,30 +192,41 @@ def test_listar_entidades_disponibles_rechaza_coordenadas_incompletas():
     assert response.status_code == 422
 
 
-def test_listar_entidades_disponibles_incluye_sedapal_para_agua():
+def test_entidades_disponibles_no_consulta_sedapal_sin_gps():
     with TestClient(app) as cliente:
         response = cliente.get("/api/entidades/disponibles", params={
             "categoria": "Agua y saneamiento",
-            "departamento": "Lima",
-            "provincia": "Lima",
-            "distrito": "Miraflores",
+            "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
         })
-    assert response.status_code == 200
-    data = response.json()
-    assert len(data["entidades"]) == 1
-    assert data["entidades"][0]["id"] == "sedapal-lima-callao"
+    assert response.status_code == 422
 
 
-def test_catalogo_devuelve_revision_para_categoria_sin_entidad_publica_habilitada():
+def test_entidades_disponibles_no_ofrece_revision_sin_gps():
     with TestClient(app) as cliente:
         response = cliente.get("/api/entidades/disponibles", params={
             "categoria": "Otros",
-            "departamento": "Lima",
-            "provincia": "Lima",
-            "distrito": "Miraflores",
+            "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
+        })
+    assert response.status_code == 422
+
+
+def test_entidades_disponibles_consulta_matriz_tras_resolver_gps(monkeypatch):
+    from app import main
+    monkeypatch.setattr(main, "resolver_distrito_por_punto", lambda lat, lon: {
+        "ubigeo": "150122", "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
+    })
+    monkeypatch.setattr(main, "consultar_resolutor_categoria", lambda ubigeo, codigo: {
+        "requiere_gps": True, "asignar_solo_tras_gps": True,
+    })
+    monkeypatch.setattr(main, "listar_entidades_disponibles", lambda *args: [{
+        "id": "mun-150122", "nombre": "Municipalidad Distrital de Miraflores",
+        "tipo": "municipalidad_distrital",
+        "ambito": {"departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores"},
+    }])
+    with TestClient(app) as cliente:
+        response = cliente.get("/api/entidades/disponibles", params={
+            "categoria": "Limpieza y residuos",
+            "latitud": -12.12, "longitud": -77.03,
         })
     assert response.status_code == 200
-    data = response.json()
-    assert len(data["entidades"]) == 1
-    assert data["entidades"][0]["tipo"] == "revision_competencia"
-    assert "revisión de competencia" in data["motivo"].lower()
+    assert response.json()["entidades"][0]["ambito"]["distrito"] == "Miraflores"
