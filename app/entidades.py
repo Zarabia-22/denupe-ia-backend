@@ -62,9 +62,9 @@ def resolver_distrito_por_punto(latitud: float, longitud: float) -> dict:
     if len(ubigeo) != 6 or not ubigeo.isdigit():
         raise RuntimeError("La capa distrital no devolvió un código UBIGEO válido.")
     feature = by_ubigeo[0]
-    departamento = str(feature.get("NOMBDEP") or "").strip()
-    provincia = str(feature.get("NOMBPROV") or "").strip()
-    distrito = str(feature.get("NOMBDIST") or "").strip()
+    departamento = str(feature.get("NOMBDEP") or "").strip().title()
+    provincia = str(feature.get("NOMBPROV") or "").strip().title()
+    distrito = str(feature.get("NOMBDIST") or "").strip().title()
     if not all((departamento, provincia, distrito)):
         raise RuntimeError("La capa distrital no devolvió departamento, provincia y distrito.")
     return {
