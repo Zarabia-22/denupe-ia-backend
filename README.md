@@ -256,3 +256,23 @@ Variables opcionales:
 - DISTRITOS_TIMEOUT_SECONDS: timeout de consulta (por defecto 5 segundos).
 
 Si la coordenada no cae en un único polígono, el UBIGEO no es válido, el servicio no responde o el distrito no forma parte de los 50 configurados, el endpoint no inventa el distrito y devuelve un error explícito para que la app solicite corrección o selección manual.
+
+
+### Relación obligatoria entidad–categoría por distrito (actualización)
+
+El endpoint `GET /api/territorio/catalogo-distrital` ahora devuelve una entidad principal relacionada con **cada una de las ocho categorías** en cada uno de los 50 distritos configurados de Lima Metropolitana y Callao. Cada categoría incluye `entidades`, `entidad_principal`, `respaldo`, `ruta` y un `estado` que indica si la entidad ya está determinada o si requiere una resolución adicional.
+
+| Categoría | Entidad principal preconfigurada | Regla para seleccionar/confirmar |
+|---|---|---|
+| Alumbrado público | Concesionaria eléctrica del punto | GPS + polígono de concesión OSINERGMIN; municipalidad como apoyo local |
+| Seguridad ciudadana | PNP / comisaría de la jurisdicción | GPS + polígono PNP; serenazgo municipal es apoyo, no reemplazo de PNP |
+| Limpieza y residuos | Municipalidad del distrito | Competencia local para limpieza pública |
+| Agua y saneamiento | SEDAPAL en Lima/Callao; municipalidad como ventanilla de orientación fuera de ese ámbito | Confirmar cobertura efectiva y operador del predio |
+| Tránsito y transporte | ATU, municipalidad provincial/metropolitana y municipalidad distrital | Clasificar transporte público, tránsito local, semáforos y tipo de vía |
+| Parques y áreas verdes | Municipalidad del distrito | Confirmar que el espacio sea público y esté bajo administración local |
+| Vialidad e infraestructura | MTC/Provías, Gobierno Regional, municipalidad provincial o distrital | GPS + jerarquía, titularidad, concesión o delegación del tramo |
+| Otros | Municipalidad del distrito como primer punto de orientación | Clasificación posterior; no se presume que sea la autoridad sectorial final |
+
+**Importante:** “relacionada” no significa que todas las instituciones sean competentes para cualquier incidente de esa categoría. En alumbrado, PNP, tránsito y vialidad, el catálogo preconfigura la familia de entidades y la regla de resolución; la institución concreta depende del punto GPS y del tipo de hecho. En agua se debe confirmar el operador efectivo. Para “Otros”, la municipalidad es una ventanilla inicial de orientación, no una atribución universal de competencia. `revision_competencia` continúa existiendo únicamente como bandeja interna de respaldo de DenuPe y nunca se muestra como entidad pública ni como entidad principal de la matriz.
+
+La cobertura de esta matriz sigue limitada a los 50 distritos configurados de Lima Metropolitana y Callao. No se debe afirmar cobertura nacional hasta incorporar y validar directorios municipales y operadores de saneamiento, electricidad, PNP y autoridades viales de las demás regiones. Se añadió una prueba que recorre los 50 registros y exige ocho de ocho categorías con entidad principal relacionada.
