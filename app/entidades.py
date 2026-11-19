@@ -88,6 +88,8 @@ def _leer_atributos_arcgis(response, servicio: str) -> list[dict]:
         raise RuntimeError(f"La respuesta de {servicio} no tiene formato JSON de objeto")
     if "error" in payload:
         raise RuntimeError(f"El servicio {servicio} devolvió un error")
+    if payload.get("exceededTransferLimit") is True:
+        raise RuntimeError(f"La respuesta de {servicio} está truncada por el límite de transferencia")
     features = payload.get("features")
     if not isinstance(features, list):
         raise RuntimeError(f"La respuesta de {servicio} no contiene una lista de resultados")
