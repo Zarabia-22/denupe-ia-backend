@@ -233,3 +233,26 @@ Los archivos JSON se validan al cargarse: estructura, campos obligatorios, tipos
 
 ### Seguridad pendiente antes de exposición pública
 Este backend no valida identidad de usuario ni JWT. CORS no es autenticación y una clave estática embebida en Flutter puede extraerse. Antes de abrir el endpoint públicamente, integrar validación de tokens del proveedor de identidad de DenuPe o colocar un gateway que autentique y limite tráfico. No habilitar derivación automática: las respuestas siguen siendo sugerencias y requieren decisión humana.
+
+
+## Catálogo preconfigurado por distrito y resolución GPS
+
+La cobertura inicial mantiene los **50 distritos de Lima Metropolitana y Callao**. El endpoint GET /api/territorio/catalogo-distrital expone una matriz de las ocho categorías para el distrito solicitado. Puede recibir el distrito administrativo o, preferentemente, latitud y longitud; cuando se envían coordenadas, el backend resuelve el distrito por intersección del punto con la capa poligonal distrital (capa 3) y valida el UBIGEO contra el catálogo local. El GPS prevalece sobre cualquier distrito escrito por el cliente.
+
+Ejemplos:
+
+```http
+GET /api/territorio/resolver-distrito?latitud=-12.12&longitud=-77.03
+GET /api/territorio/catalogo-distrital?latitud=-12.12&longitud=-77.03
+GET /api/territorio/catalogo-distrital?departamento=Lima&provincia=Lima&distrito=Miraflores
+```
+
+La matriz configura las rutas para todas las categorías: municipalidad para limpieza y parques bajo sus condiciones locales; SEDAPAL para agua/saneamiento dentro del ámbito documentado de Lima y Callao; resolución espacial por GPS para PNP y concesionarias eléctricas; y revisión de competencia para tránsito genérico, vialidad sin titularidad de tramo verificada y Otros. Una ruta preconfigurada no significa que cualquier entidad sea competente para cualquier incidente: los casos sin prueba territorial o sectorial suficiente permanecen en revisión.
+
+Fuente de límites distritales: servicio cartográfico del Estado, capa 3 Límite Distrital, atributos UBIGEO, NOMBDEP, NOMBPROV y NOMBDIST: https://ws.mineco.gob.pe/server/rest/services/cartografia_base_limites/MapServer/layers. La fuente publica polígonos en WGS84 (EPSG:4326). La plataforma Geo Perú advierte que los límites mostrados son referenciales y atribuidos al INEI; para controversias de demarcación debe prevalecer la delimitación oficial inscrita en RENLIM. La resolución GPS del PMV es una identificación operativa de distrito, no una determinación legal de límites.
+
+Variables opcionales:
+- DISTRITOS_MAPSERVER_URL: URL base del MapServer de límites distritales.
+- DISTRITOS_TIMEOUT_SECONDS: timeout de consulta (por defecto 5 segundos).
+
+Si la coordenada no cae en un único polígono, el UBIGEO no es válido, el servicio no responde o el distrito no forma parte de los 50 configurados, el endpoint no inventa el distrito y devuelve un error explícito para que la app solicite corrección o selección manual.
