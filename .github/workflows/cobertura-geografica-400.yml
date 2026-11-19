@@ -10,6 +10,9 @@ on:
       - "app/entidades.py"
       - "app/schemas.py"
       - ".github/workflows/cobertura-geografica-400.yml"
+  pull_request:
+    branches:
+      - feat/robustez-motor-geografico
   workflow_dispatch:
 
 permissions:
