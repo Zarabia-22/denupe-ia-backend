@@ -160,3 +160,42 @@ def test_health_ready_valida_el_catalogo_de_entidades():
         response = cliente.get("/health/ready")
     assert response.status_code == 200
     assert response.json()["entidades_catalogo"] == 96
+
+
+def test_listar_entidades_disponibles_endpoint_para_categoria_municipal():
+    with TestClient(app) as cliente:
+        response = cliente.get("/api/entidades/disponibles", params={
+            "categoria": "Limpieza y residuos",
+            "departamento": "Lima",
+            "provincia": "Lima",
+            "distrito": "Miraflores",
+        })
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["entidades"]) == 1
+    assert data["entidades"][0]["id"] == "mun-150122"
+    assert data["entidades"][0]["tipo"] == "municipalidad_distrital"
+
+
+def test_listar_entidades_disponibles_no_expone_categoria_no_habilitada():
+    with TestClient(app) as cliente:
+        response = cliente.get("/api/entidades/disponibles", params={
+            "categoria": "Agua y saneamiento",
+            "departamento": "Lima",
+            "provincia": "Lima",
+            "distrito": "Miraflores",
+        })
+    assert response.status_code == 200
+    assert response.json()["entidades"] == []
+
+
+def test_listar_entidades_disponibles_rechaza_coordenadas_incompletas():
+    with TestClient(app) as cliente:
+        response = cliente.get("/api/entidades/disponibles", params={
+            "categoria": "Seguridad ciudadana",
+            "departamento": "Lima",
+            "provincia": "Lima",
+            "distrito": "Miraflores",
+            "latitud": -12.12,
+        })
+    assert response.status_code == 422

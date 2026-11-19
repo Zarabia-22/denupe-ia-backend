@@ -4,12 +4,12 @@ import os
 
 from .middleware import RequestProtectionMiddleware
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from .predictor import cargar_modelo, sugerir_categoria
-from .entidades import sugerir_entidad, cargar_directorio
-from .schemas import DenunciaEntrada, SugerenciaSalida, EntidadEntrada, EntidadSalida
+from .entidades import sugerir_entidad, cargar_directorio, listar_entidades_disponibles
+from .schemas import DenunciaEntrada, SugerenciaSalida, EntidadEntrada, EntidadSalida, EntidadesDisponiblesSalida
 
 
 @asynccontextmanager
@@ -77,3 +77,27 @@ def predecir(denuncia: DenunciaEntrada) -> SugerenciaSalida:
 def predecir_entidad(denuncia: EntidadEntrada) -> EntidadSalida:
     """Recomienda una entidad solo si existe coincidencia territorial verificable."""
     return sugerir_entidad(denuncia)
+
+@app.get(
+    "/api/entidades/disponibles",
+    response_model=EntidadesDisponiblesSalida,
+    tags=["Catálogo de instituciones"],
+)
+def entidades_disponibles(
+    categoria: str = Query(min_length=2, max_length=80),
+    departamento: str = Query(min_length=2, max_length=80),
+    provincia: str = Query(min_length=2, max_length=80),
+    distrito: str = Query(min_length=2, max_length=80),
+    latitud: float | None = Query(default=None, ge=-90, le=90),
+    longitud: float | None = Query(default=None, ge=-180, le=180),
+) -> EntidadesDisponiblesSalida:
+    """Lista opciones manuales validadas para la categoría y ubicación."""
+    items = listar_entidades_disponibles(
+        categoria, departamento, provincia, distrito, latitud, longitud
+    )
+    motivo = (
+        "Selecciona una institución con competencia validada para esta denuncia."
+        if items else
+        "No hay instituciones verificadas para esta categoría y ubicación. La denuncia puede pasar a revisión de competencia."
+    )
+    return EntidadesDisponiblesSalida(entidades=items, motivo=motivo)

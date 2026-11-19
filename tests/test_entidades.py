@@ -524,3 +524,32 @@ def test_un_resultado_sin_codigo_no_se_descarta_al_resolver_jurisdiccion(monkeyp
     salida = sugerir_entidad(denuncia)
     assert salida.sugerida is False
     assert salida.entidad is None
+
+
+def test_listar_entidades_disponibles_devuelve_municipalidad_por_categoria_y_territorio():
+    from app.entidades import listar_entidades_disponibles
+
+    items = listar_entidades_disponibles(
+        "Limpieza y residuos", "Lima", "Lima", "Miraflores"
+    )
+    assert len(items) == 1
+    assert items[0]["id"] == "mun-150122"
+    assert items[0]["tipo"] == "municipalidad_distrital"
+
+
+def test_listar_entidades_disponibles_no_confunde_municipalidad_con_competencia_no_habilitada():
+    from app.entidades import listar_entidades_disponibles
+
+    items = listar_entidades_disponibles(
+        "Vialidad e infraestructura", "Lima", "Lima", "Miraflores"
+    )
+    assert items == []
+
+
+def test_listar_entidades_disponibles_devuelve_vacio_para_distrito_no_catalogado():
+    from app.entidades import listar_entidades_disponibles
+
+    items = listar_entidades_disponibles(
+        "Limpieza y residuos", "Lima", "Lima", "Distrito inexistente"
+    )
+    assert items == []

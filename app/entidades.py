@@ -190,7 +190,7 @@ def _sugerir_comisaria_por_punto(entrada: EntidadEntrada) -> EntidadSalida:
 
 def _arcgis_query_osinergmin(layer: int, params: dict) -> list[dict]:
     """Consulta capas públicas de concesiones eléctricas de OSINERGMIN."""
-    query = {"f": "json", "outFields": "*", "returnGeometry": "false", "resultRecordCount": 2, **params}
+    query = {"f": "json", "outFields": "*", "returnGeometry": "false", "resultRecordCount": 25, **params}
     url = f"{OSINERGMIN_MAPSERVER}/{layer}/query?{urlencode(query)}"
     return _consultar_arcgis(url, OSINERGMIN_TIMEOUT, "OSINERGMIN")
 
@@ -342,3 +342,79 @@ def sugerir_entidad(entrada: EntidadEntrada) -> EntidadSalida:
         },
         motivo="La categoría, la jurisdicción y los términos de la descripción coinciden con el registro habilitado de esta entidad.",
     )
+
+
+def listar_entidades_disponibles(
+    categoria: str,
+    departamento: str,
+    provincia: str,
+    distrito: str,
+    latitud: float | None = None,
+    longitud: float | None = None,
+) -> list[dict]:
+    """Devuelve opciones manuales con competencia verificable para el lugar.
+
+    No usa similitud de texto ni inventa alternativas: las municipalidades se
+    filtran por el directorio oficial y las entidades geoespaciales se incluyen
+    únicamente cuando el punto permite resolver una coincidencia única.
+    """
+    cat = normalizar(categoria)
+    dep = normalizar(departamento)
+    prov = normalizar(provincia)
+    dis = normalizar(distrito)
+    resultados: list[dict] = []
+
+    for registro in cargar_directorio():
+        if not registro.get("verificado_nombre") or not registro.get("verificado_competencias"):
+            continue
+        if (
+            normalizar(registro.get("departamento", "")) != dep
+            or normalizar(registro.get("provincia", "")) != prov
+            or normalizar(registro.get("distrito", "")) != dis
+        ):
+            continue
+        categorias = {
+            normalizar(item)
+            for item in registro.get("categorias_habilitadas", [])
+        }
+        if cat not in categorias:
+            continue
+        resultados.append({
+            "id": registro["id"],
+            "nombre": registro["nombre"],
+            "tipo": registro["tipo"],
+            "direccion": registro.get("direccion"),
+            "telefono": registro.get("telefono"),
+            "sitio_web": registro.get("sitio_web"),
+            "ambito": {
+                "departamento": registro["departamento"],
+                "provincia": registro["provincia"],
+                "distrito": registro["distrito"],
+            },
+        })
+
+    # Instituciones cuya competencia depende del punto GPS, no solo del distrito.
+    entrada = EntidadEntrada(
+        categoria=categoria,
+        departamento=departamento,
+        provincia=provincia,
+        distrito=distrito,
+        titulo="Consulta manual de institución competente",
+        descripcion="Consulta manual del catálogo de instituciones disponibles.",
+        latitud=latitud,
+        longitud=longitud,
+    )
+    resultado_geografico = None
+    if cat in {"seguridad ciudadana", "seguridad ciudadana delitos", "delitos", "robo", "asalto", "violencia", "actividad sospechosa"}:
+        resultado_geografico = _sugerir_comisaria_por_punto(entrada)
+    elif cat == "alumbrado publico":
+        resultado_geografico = _sugerir_concesionaria_electrica(entrada)
+    elif cat == "transporte publico urbano de pasajeros":
+        resultado_geografico = _sugerir_atu(entrada)
+
+    if resultado_geografico and resultado_geografico.sugerida and resultado_geografico.entidad:
+        item = resultado_geografico.entidad.model_dump() if hasattr(resultado_geografico.entidad, "model_dump") else dict(resultado_geografico.entidad)
+        if not any(actual["id"] == item["id"] for actual in resultados):
+            resultados.append(item)
+
+    return sorted(resultados, key=lambda item: normalizar(item["nombre"]))
