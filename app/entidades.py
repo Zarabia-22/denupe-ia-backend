@@ -262,7 +262,11 @@ def _sugerir_concesionaria_electrica(entrada: EntidadEntrada) -> EntidadSalida:
 
 
 
-def _sugerir_sedapal(entrada: EntidadEntrada) -> EntidadSalida:
+def _sugerir_sedapal(
+    entrada: EntidadEntrada,
+    *,
+    exigir_senal_textual: bool = True,
+) -> EntidadSalida:
     """Resuelve agua y saneamiento hacia SEDAPAL dentro de su ámbito documentado."""
     if (normalizar(entrada.departamento), normalizar(entrada.provincia)) not in {
         ("lima", "lima"),
@@ -293,8 +297,10 @@ def _sugerir_sedapal(entrada: EntidadEntrada) -> EntidadSalida:
         "agua potable", "corte de agua", "sin agua", "falta de agua",
         "fuga", "tuberia", "desague", "alcantarillado", "buzon",
         "aniego", "baja presion", "rotura de tuberia", "colapso",
+        "no hay agua", "no llega agua", "agua no llega", "no sale agua",
+        "corte", "servicio de agua", "problema de agua",
     )
-    if not any(normalizar(senal) in texto for senal in senales):
+    if exigir_senal_textual and not any(normalizar(senal) in texto for senal in senales):
         return EntidadSalida(
             sugerida=False, entidad=None,
             motivo="El texto no permite confirmar que el incidente corresponda a la red de agua potable o alcantarillado.",
@@ -473,7 +479,9 @@ def listar_entidades_disponibles(
     elif cat == "alumbrado publico":
         resultado_geografico = _sugerir_concesionaria_electrica(entrada)
     elif cat == "agua y saneamiento":
-        resultado_geografico = _sugerir_sedapal(entrada)
+        # El endpoint de catálogo no recibe título ni descripción; la competencia
+        # territorial se lista por categoría y ámbito, y el POST valida el texto.
+        resultado_geografico = _sugerir_sedapal(entrada, exigir_senal_textual=False)
     elif cat == "transporte publico urbano de pasajeros":
         resultado_geografico = _sugerir_atu(entrada)
 

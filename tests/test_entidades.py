@@ -615,3 +615,33 @@ def test_catalogo_disponible_incluye_sedapal_para_agua_en_lima():
     assert len(items) == 1
     assert items[0]["id"] == "sedapal-lima-callao"
     assert items[0]["tipo"] == "empresa_saneamiento"
+
+
+def test_agua_saneamiento_acepta_redaccion_coloquial():
+    denuncia = entrada(
+        categoria="Agua y saneamiento",
+        titulo="No hay agua en mi casa",
+        descripcion="Desde ayer no llega agua por la tubería y los vecinos estamos sin servicio.",
+    )
+    salida = sugerir_entidad(denuncia)
+    assert salida.sugerida is True
+    assert salida.entidad.id == "sedapal-lima-callao"
+
+
+def test_catalogo_sedapal_cubre_los_50_distritos_registrados():
+    from app.entidades import listar_entidades_disponibles
+
+    municipalidades = [
+        item for item in cargar_directorio()
+        if item.get("tipo") in {"municipalidad_distrital", "municipalidad_provincial"}
+        and item.get("verificado_nombre") is True
+    ]
+    assert len(municipalidades) == 50
+    for item in municipalidades:
+        resultado = listar_entidades_disponibles(
+            "Agua y saneamiento",
+            item["departamento"],
+            item["provincia"],
+            item["distrito"],
+        )
+        assert [entity["id"] for entity in resultado] == ["sedapal-lima-callao"]
