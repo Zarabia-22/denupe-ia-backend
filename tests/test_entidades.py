@@ -353,3 +353,81 @@ def test_transito_y_transporte_generico_no_asigna_atu():
     assert salida.sugerida is False
     assert salida.entidad is None
 
+
+
+
+def test_catalogo_manual_filtra_por_categoria_y_jurisdiccion(tmp_path, monkeypatch):
+    from app.entidades import listar_entidades_disponibles
+
+    catalogo = [
+        {
+            "id": "mun-150122",
+            "nombre": "Municipalidad Distrital de Miraflores",
+            "tipo": "municipalidad_distrital",
+            "departamento": "Lima",
+            "provincia": "Lima",
+            "distrito": "Miraflores",
+            "categorias": ["Limpieza y residuos"],
+            "categorias_habilitadas": ["Limpieza y residuos"],
+            "palabras_clave": ["basura"],
+            "verificado_nombre": True,
+            "verificado_competencias": True,
+        },
+        {
+            "id": "mun-150140",
+            "nombre": "Municipalidad Distrital de Santiago de Surco",
+            "tipo": "municipalidad_distrital",
+            "departamento": "Lima",
+            "provincia": "Lima",
+            "distrito": "Santiago de Surco",
+            "categorias": ["Limpieza y residuos"],
+            "categorias_habilitadas": ["Limpieza y residuos"],
+            "palabras_clave": ["basura"],
+            "verificado_nombre": True,
+            "verificado_competencias": True,
+        },
+    ]
+    archivo = tmp_path / "entidades.json"
+    archivo.write_text(json.dumps(catalogo), encoding="utf-8")
+    monkeypatch.setattr("app.entidades.DIRECTORIO_PATH", archivo)
+    monkeypatch.setattr("app.entidades.COMISARIAS_PATH", tmp_path / "no-existe.json")
+    cargar_directorio.cache_clear()
+
+    disponibles = listar_entidades_disponibles(
+        "Limpieza y residuos", "Lima", "Lima", "Miraflores"
+    )
+
+    assert len(disponibles) == 1
+    assert disponibles[0]["id"] == "mun-150122"
+    assert disponibles[0]["nombre"] == "Municipalidad Distrital de Miraflores"
+    cargar_directorio.cache_clear()
+
+
+def test_catalogo_manual_no_ofrece_categoria_sin_competencia_verificada(tmp_path, monkeypatch):
+    from app.entidades import listar_entidades_disponibles
+
+    catalogo = [{
+        "id": "mun-150122",
+        "nombre": "Municipalidad Distrital de Miraflores",
+        "tipo": "municipalidad_distrital",
+        "departamento": "Lima",
+        "provincia": "Lima",
+        "distrito": "Miraflores",
+        "categorias": ["Alumbrado público"],
+        "categorias_habilitadas": ["Limpieza y residuos"],
+        "palabras_clave": ["alumbrado"],
+        "verificado_nombre": True,
+        "verificado_competencias": True,
+    }]
+    archivo = tmp_path / "entidades.json"
+    archivo.write_text(json.dumps(catalogo), encoding="utf-8")
+    monkeypatch.setattr("app.entidades.DIRECTORIO_PATH", archivo)
+    monkeypatch.setattr("app.entidades.COMISARIAS_PATH", tmp_path / "no-existe.json")
+    cargar_directorio.cache_clear()
+
+    disponibles = listar_entidades_disponibles(
+        "Alumbrado público", "Lima", "Lima", "Miraflores"
+    )
+
+    assert disponibles == []
+    cargar_directorio.cache_clear()
