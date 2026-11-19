@@ -19,7 +19,9 @@ def entrada(**cambios):
 
 
 def test_sin_entidades_registradas_se_abstiene(tmp_path, monkeypatch):
-    monkeypatch.setattr("app.entidades.DIRECTORIO_PATH", tmp_path / "no-municipalidades.json")
+    catalogo_vacio = tmp_path / "no-municipalidades.json"
+    catalogo_vacio.write_text("[]", encoding="utf-8")
+    monkeypatch.setattr("app.entidades.DIRECTORIO_PATH", catalogo_vacio)
     monkeypatch.setattr("app.entidades.COMISARIAS_PATH", tmp_path / "no-comisarias.json")
     cargar_directorio.cache_clear()
     salida = sugerir_entidad(entrada())
