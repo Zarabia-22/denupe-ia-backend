@@ -74,17 +74,38 @@ def cargar_directorio() -> list[dict]:
     return _leer_lista(DIRECTORIO_PATH) + _leer_lista(COMISARIAS_PATH)
 
 
+MAX_ARCGIS_RESPONSE_BYTES = 1_048_576
+
+
+def _leer_atributos_arcgis(response, servicio: str) -> list[dict]:
+    """Lee una respuesta acotada y valida la estructura antes de usar sus atributos."""
+    raw = response.read(MAX_ARCGIS_RESPONSE_BYTES + 1)
+    if len(raw) > MAX_ARCGIS_RESPONSE_BYTES:
+        raise RuntimeError(f"La respuesta de {servicio} supera el tamaño permitido")
+    payload = json.loads(raw.decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"La respuesta de {servicio} no tiene formato JSON de objeto")
+    if "error" in payload:
+        raise RuntimeError(f"El servicio {servicio} devolvió un error")
+    features = payload.get("features")
+    if not isinstance(features, list):
+        raise RuntimeError(f"La respuesta de {servicio} no contiene una lista de resultados")
+    atributos = []
+    for feature in features:
+        if not isinstance(feature, dict) or not isinstance(feature.get("attributes"), dict):
+            raise RuntimeError(f"La respuesta de {servicio} contiene un resultado inválido")
+        atributos.append(feature["attributes"])
+    return atributos
+
+
 def _arcgis_query(layer: int, params: dict) -> list[dict]:
-    query = {"f": "json", "outFields": "*", "returnGeometry": "false", **params}
+    query = {"f": "json", "outFields": "*", "returnGeometry": "false", "resultRecordCount": 2, **params}
     url = f"{PNP_MAPSERVER}/{layer}/query?{urlencode(query)}"
     try:
         with urlopen(url, timeout=PNP_TIMEOUT) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except (URLError, HTTPError, TimeoutError, json.JSONDecodeError) as exc:
+            return _leer_atributos_arcgis(response, "MININTER")
+    except (URLError, HTTPError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise RuntimeError("No se pudo consultar el servicio geográfico oficial de MININTER") from exc
-    if "error" in payload:
-        raise RuntimeError("El servicio geográfico de MININTER devolvió un error")
-    return [feature.get("attributes", {}) for feature in payload.get("features", [])]
 
 
 def _sugerir_comisaria_por_punto(entrada: EntidadEntrada) -> EntidadSalida:
@@ -141,16 +162,13 @@ def _sugerir_comisaria_por_punto(entrada: EntidadEntrada) -> EntidadSalida:
 
 def _arcgis_query_osinergmin(layer: int, params: dict) -> list[dict]:
     """Consulta capas públicas de concesiones eléctricas de OSINERGMIN."""
-    query = {"f": "json", "outFields": "*", "returnGeometry": "false", **params}
+    query = {"f": "json", "outFields": "*", "returnGeometry": "false", "resultRecordCount": 2, **params}
     url = f"{OSINERGMIN_MAPSERVER}/{layer}/query?{urlencode(query)}"
     try:
         with urlopen(url, timeout=OSINERGMIN_TIMEOUT) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except (URLError, HTTPError, TimeoutError, json.JSONDecodeError) as exc:
+            return _leer_atributos_arcgis(response, "OSINERGMIN")
+    except (URLError, HTTPError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise RuntimeError("No se pudo consultar el mapa oficial de concesiones eléctricas de OSINERGMIN") from exc
-    if "error" in payload:
-        raise RuntimeError("El servicio de concesiones eléctricas de OSINERGMIN devolvió un error")
-    return [feature.get("attributes", {}) for feature in payload.get("features", [])]
 
 
 def _sugerir_concesionaria_electrica(entrada: EntidadEntrada) -> EntidadSalida:

@@ -4,9 +4,13 @@ El limitador es local al proceso: para varias instancias debe sustituirse por Re
 o por un limitador gestionado en el gateway/edge.
 """
 from collections import defaultdict, deque
+import logging
 from time import monotonic
 from uuid import uuid4
 import os
+
+
+logger = logging.getLogger("denupe.request_protection")
 
 
 class _PayloadTooLarge(Exception):
@@ -30,6 +34,7 @@ class RequestProtectionMiddleware:
         self.max_body = _positive_int("MAX_REQUEST_BODY_BYTES", 16384)
         self.rate_limit = _positive_int("RATE_LIMIT_PER_MINUTE", 120)
         self._requests = defaultdict(deque)
+        self._last_cleanup = monotonic()
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
@@ -40,6 +45,14 @@ class RequestProtectionMiddleware:
         client = scope.get("client")
         client_ip = client[0] if client else "unknown"
         now = monotonic()
+        if now - self._last_cleanup >= 60:
+            stale_ips = [
+                ip for ip, requests in self._requests.items()
+                if not requests or now - requests[-1] >= 60
+            ]
+            for ip in stale_ips:
+                self._requests.pop(ip, None)
+            self._last_cleanup = now
         bucket = self._requests[client_ip]
         while bucket and now - bucket[0] >= 60:
             bucket.popleft()
@@ -106,7 +119,8 @@ class RequestProtectionMiddleware:
             if response_started:
                 raise
             await respond(413, b'{"detail":"El cuerpo de la solicitud supera el limite permitido."}')
-        except Exception:
+        except Exception as exc:
             if response_started:
                 raise
+            logger.error("Error interno request_id=%s tipo=%s", request_id, type(exc).__name__)
             await respond(500, b'{"detail":"Error interno. Usa el identificador de solicitud para reportarlo."}')

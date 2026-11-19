@@ -394,3 +394,44 @@ def test_transito_y_transporte_generico_no_asigna_atu():
     assert salida.sugerida is False
     assert salida.entidad is None
 
+
+
+
+def test_arcgis_limita_resultados_y_valida_atributos(monkeypatch):
+    import io
+    from app import entidades
+
+    captured = {}
+    def fake_urlopen(url, timeout):
+        captured["url"] = url
+        captured["timeout"] = timeout
+        return io.BytesIO(b'{"features":[{"attributes":{"cod_cpnp":"123"}}]}')
+
+    monkeypatch.setattr(entidades, "urlopen", fake_urlopen)
+    salida = entidades._arcgis_query(2, {"geometryType": "esriGeometryPoint"})
+    assert salida == [{"cod_cpnp": "123"}]
+    assert "resultRecordCount=2" in captured["url"]
+
+
+def test_arcgis_rechaza_respuesta_demasiado_grande(monkeypatch):
+    import io
+    import pytest
+    from app import entidades
+
+    monkeypatch.setattr(
+        entidades,
+        "urlopen",
+        lambda url, timeout: io.BytesIO(b" " * (entidades.MAX_ARCGIS_RESPONSE_BYTES + 1)),
+    )
+    with pytest.raises(RuntimeError, match="supera el tamaño"):
+        entidades._arcgis_query(2, {})
+
+
+def test_arcgis_rechaza_estructura_invalida(monkeypatch):
+    import io
+    import pytest
+    from app import entidades
+
+    monkeypatch.setattr(entidades, "urlopen", lambda url, timeout: io.BytesIO(b'{"features":[{}]}'))
+    with pytest.raises(RuntimeError, match="resultado inválido"):
+        entidades._arcgis_query(2, {})
