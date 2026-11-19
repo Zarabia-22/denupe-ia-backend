@@ -21,7 +21,13 @@ permissions:
 jobs:
   cobertura-400:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 15
+    env:
+      # Timeouts acotados: si un GIS público no responde, el motor debe caer
+      # limpiamente en revisión de competencia en lugar de bloquear la matriz.
+      PNP_TIMEOUT_SECONDS: "2"
+      OSINERGMIN_TIMEOUT_SECONDS: "2"
+      ARCGIS_RETRIES: "0"
     steps:
       - name: Descargar repositorio
         uses: actions/checkout@v4
