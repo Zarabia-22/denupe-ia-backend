@@ -751,3 +751,41 @@ def test_catalogo_disponible_usa_distrito_resuelto_por_gps(monkeypatch):
         longitud=-77.03,
     )
     assert salida.entidades[0].ambito["distrito"] == "Miraflores"
+
+
+def test_catalogo_distrital_relaciona_entidad_con_las_ocho_categorias():
+    from app.entidades import catalogo_distrital_por_categoria
+
+    directorio = [
+        item for item in cargar_directorio()
+        if item.get("tipo") in {"municipalidad_distrital", "municipalidad_provincial"}
+        and item.get("verificado_nombre") is True
+    ]
+    assert len(directorio) == 50
+
+    for municipio in directorio:
+        catalogo = catalogo_distrital_por_categoria(
+            municipio["departamento"], municipio["provincia"], municipio["distrito"]
+        )
+        assert catalogo["total_categorias"] == 8
+        assert catalogo["categorias_con_entidad_relacionada"] == 8
+        for categoria in catalogo["categorias"]:
+            assert categoria["entidades"], categoria["categoria"]
+            assert categoria["entidad_principal"]["id"]
+            assert categoria["entidad_principal"]["nombre"]
+            assert categoria["entidad_principal"]["tipo"] != "revision_competencia"
+
+        limpieza = next(c for c in catalogo["categorias"] if c["categoria"] == "Limpieza y residuos")
+        assert limpieza["entidad_principal"]["id"] == municipio["id"]
+
+        parques = next(c for c in catalogo["categorias"] if c["categoria"] == "Parques y áreas verdes")
+        assert parques["entidad_principal"]["id"] == municipio["id"]
+
+
+def test_catalogo_distrital_no_presenta_revision_interna_como_entidad_publica():
+    from app.entidades import catalogo_distrital_por_categoria
+
+    catalogo = catalogo_distrital_por_categoria("Lima", "Lima", "Miraflores")
+    for categoria in catalogo["categorias"]:
+        assert all(e["tipo"] != "revision_competencia" for e in categoria["entidades"])
+        assert categoria["respaldo"]["tipo"] != "revision_competencia" or categoria["respaldo"]["id"] == "revision-competencia"
