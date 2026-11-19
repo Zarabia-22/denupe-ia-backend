@@ -96,3 +96,67 @@ def test_normalizacion_de_tildes_y_espacios():
     from app.text_processing import normalizar_texto
     assert normalizar_texto(" ÁRBOL  CAÍDO\tEN  EL  PARQUE! ") == "arbol caido en el parque"
     assert "@" not in normalizar_texto("Consulta: vecino@ejemplo.com")
+
+
+
+def test_entidad_rechaza_coordenadas_sin_par():
+    with TestClient(app) as cliente:
+        response = cliente.post("/api/ia/sugerir-entidad", json={
+            "categoria": "Seguridad ciudadana",
+            "departamento": "Lima",
+            "provincia": "Lima",
+            "distrito": "Miraflores",
+            "titulo": "Robo en la vía pública",
+            "descripcion": "Reporto un robo ocurrido cerca del parque.",
+            "latitud": -12.12,
+        })
+    assert response.status_code == 422
+
+
+def test_entidad_rechaza_campos_extra():
+    with TestClient(app) as cliente:
+        response = cliente.post("/api/ia/sugerir-entidad", json={
+            "categoria": "Limpieza y residuos",
+            "departamento": "Lima",
+            "provincia": "Lima",
+            "distrito": "Miraflores",
+            "titulo": "Basura acumulada en la avenida",
+            "descripcion": "Hay residuos acumulados en la vía pública.",
+            "dni": "12345678",
+        })
+    assert response.status_code == 422
+
+
+def test_health_ready_expone_estado_tecnico():
+    with TestClient(app) as cliente:
+        response = cliente.get("/health/ready")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
+    assert response.json()["categorias"] == 8
+
+
+
+def test_respuestas_incluyen_identificador_y_cabeceras_de_seguridad():
+    with TestClient(app) as cliente:
+        response = cliente.get("/health")
+    assert response.status_code == 200
+    assert response.headers.get("x-request-id")
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["cache-control"] == "no-store"
+
+
+def test_solicitud_demasiado_grande_se_rechaza():
+    with TestClient(app) as cliente:
+        response = cliente.post(
+            "/api/ia/sugerir-categoria",
+            content=b"x" * 17000,
+            headers={"content-type": "application/json"},
+        )
+    assert response.status_code == 413
+
+
+def test_health_ready_valida_el_catalogo_de_entidades():
+    with TestClient(app) as cliente:
+        response = cliente.get("/health/ready")
+    assert response.status_code == 200
+    assert response.json()["entidades_catalogo"] == 96

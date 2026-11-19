@@ -39,6 +39,7 @@ def test_recomienda_entidad_solo_con_coincidencia_territorial_y_tematica(tmp_pat
         "categorias": ["Limpieza y residuos"],
         "palabras_clave": ["residuos", "basura", "desperdicios"],
         "habilitada_recomendacion": True,
+        "verificado_competencias": True,
         "direccion": None,
         "telefono": None,
         "sitio_web": None,
@@ -67,6 +68,7 @@ def test_no_recomienda_entidad_de_otro_distrito(tmp_path, monkeypatch):
         "categorias": ["Limpieza y residuos"],
         "palabras_clave": ["residuos", "basura"],
         "habilitada_recomendacion": True,
+        "verificado_competencias": True,
     }]
     archivo = tmp_path / "entidades.json"
     archivo.write_text(json.dumps(catalogo), encoding="utf-8")
@@ -343,6 +345,45 @@ def test_atu_se_abstiene_fuera_de_lima_y_callao():
     assert salida.entidad is None
 
 
+
+
+def test_entidad_rechaza_coordenadas_incompletas():
+    from pydantic import ValidationError
+    import pytest
+    with pytest.raises(ValidationError):
+        entrada(categoria="Seguridad ciudadana", latitud=-12.1)
+
+
+def test_entidad_rechaza_coordenadas_fuera_de_rango():
+    from pydantic import ValidationError
+    import pytest
+    with pytest.raises(ValidationError):
+        entrada(categoria="Seguridad ciudadana", latitud=-12.1, longitud=220)
+
+
+def test_catalogo_rechaza_ids_duplicados(tmp_path, monkeypatch):
+    import pytest
+    from app.entidades import _leer_lista
+    registro = {
+        "id": "duplicado", "nombre": "Entidad", "tipo": "municipalidad",
+        "departamento": "Lima", "provincia": "Lima", "distrito": "Lima",
+        "categorias": ["Limpieza"], "palabras_clave": ["basura"],
+    }
+    archivo = tmp_path / "duplicados.json"
+    archivo.write_text(json.dumps([registro, registro]), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="duplicado"):
+        _leer_lista(archivo)
+
+
+def test_catalogo_rechaza_json_corrupto(tmp_path):
+    import pytest
+    from app.entidades import _leer_lista
+    archivo = tmp_path / "corrupto.json"
+    archivo.write_text("{ no es json", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="No se pudo leer"):
+        _leer_lista(archivo)
+
+
 def test_transito_y_transporte_generico_no_asigna_atu():
     denuncia = entrada(
         categoria="Tránsito y transporte",
@@ -353,3 +394,44 @@ def test_transito_y_transporte_generico_no_asigna_atu():
     assert salida.sugerida is False
     assert salida.entidad is None
 
+
+
+
+def test_arcgis_limita_resultados_y_valida_atributos(monkeypatch):
+    import io
+    from app import entidades
+
+    captured = {}
+    def fake_urlopen(url, timeout):
+        captured["url"] = url
+        captured["timeout"] = timeout
+        return io.BytesIO(b'{"features":[{"attributes":{"cod_cpnp":"123"}}]}')
+
+    monkeypatch.setattr(entidades, "urlopen", fake_urlopen)
+    salida = entidades._arcgis_query(2, {"geometryType": "esriGeometryPoint"})
+    assert salida == [{"cod_cpnp": "123"}]
+    assert "resultRecordCount=2" in captured["url"]
+
+
+def test_arcgis_rechaza_respuesta_demasiado_grande(monkeypatch):
+    import io
+    import pytest
+    from app import entidades
+
+    monkeypatch.setattr(
+        entidades,
+        "urlopen",
+        lambda url, timeout: io.BytesIO(b" " * (entidades.MAX_ARCGIS_RESPONSE_BYTES + 1)),
+    )
+    with pytest.raises(RuntimeError, match="supera el tamaño"):
+        entidades._arcgis_query(2, {})
+
+
+def test_arcgis_rechaza_estructura_invalida(monkeypatch):
+    import io
+    import pytest
+    from app import entidades
+
+    monkeypatch.setattr(entidades, "urlopen", lambda url, timeout: io.BytesIO(b'{"features":[{}]}'))
+    with pytest.raises(RuntimeError, match="resultado inválido"):
+        entidades._arcgis_query(2, {})

@@ -204,3 +204,24 @@ Ejemplo de solicitud para seguridad:
 ### Despliegue
 
 El repositorio define `render.yaml` con runtime Docker, `/health` y despliegue por commit. El push a esta rama puede desplegar automáticamente solo si el servicio Render está vinculado a esta rama y tiene auto-deploy habilitado. No se debe afirmar que está desplegado hasta comprobar un deploy exitoso y consultar el endpoint en el servicio correspondiente.
+
+
+## Robustez del PMV2
+
+### Validación y límites HTTP
+- Los contratos rechazan campos adicionales, textos vacíos y coordenadas incompletas o fuera de rango.
+- El middleware limita el tamaño real del cuerpo HTTP (por defecto 16 KiB), aplica una cuota por IP (120 solicitudes/minuto por proceso) y agrega identificador de solicitud y cabeceras de seguridad.
+- Variables: `MAX_REQUEST_BODY_BYTES` y `RATE_LIMIT_PER_MINUTE`.
+- Las consultas espaciales a MININTER y OSINERGMIN tienen timeout configurable, limitan la consulta a dos resultados y aceptan respuestas JSON de hasta 1 MiB; ante error, estructura inválida o ambigüedad, el recomendador se abstiene.
+- El limitador incluido mantiene contadores en memoria y es adecuado únicamente para una instancia. En despliegues con varias instancias debe trasladarse a Redis o a un gateway gestionado; no se debe confiar en `X-Forwarded-For` sin configurar proxies de confianza.
+
+### Salud y diagnóstico
+- `GET /health` conserva el contrato existente para Render.
+- `GET /health/ready` comprueba que el modelo de ocho categorías está cargado y expone solo metadatos técnicos.
+- Cada respuesta incluye `X-Request-ID`; no se registran deliberadamente títulos, descripciones, coordenadas ni datos personales.
+
+### Catálogos
+Los archivos JSON se validan al cargarse: estructura, campos obligatorios, tipos, identificadores duplicados y coherencia entre entidades habilitadas y competencias verificadas. Un catálogo corrupto produce un error explícito, nunca una recomendación silenciosamente incorrecta.
+
+### Seguridad pendiente antes de exposición pública
+Este backend no valida identidad de usuario ni JWT. CORS no es autenticación y una clave estática embebida en Flutter puede extraerse. Antes de abrir el endpoint públicamente, integrar validación de tokens del proveedor de identidad de DenuPe o colocar un gateway que autentique y limite tráfico. No habilitar derivación automática: las respuestas siguen siendo sugerencias y requieren decisión humana.
