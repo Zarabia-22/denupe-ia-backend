@@ -61,20 +61,17 @@ def resolver_distrito_por_punto(latitud: float, longitud: float) -> dict:
     ubigeo = str(by_ubigeo[0].get("UBIGEO") or "").strip()
     if len(ubigeo) != 6 or not ubigeo.isdigit():
         raise RuntimeError("La capa distrital no devolvió un código UBIGEO válido.")
-    coincidencias = [
-        item for item in cargar_directorio()
-        if item.get("codigo_ubigeo") == ubigeo
-        and item.get("tipo") in {"municipalidad_distrital", "municipalidad_provincial"}
-        and item.get("verificado_nombre") is True
-    ]
-    if len(coincidencias) != 1:
-        raise RuntimeError("El distrito detectado no está dentro de la cobertura territorial configurada de DenuPe.")
-    item = coincidencias[0]
+    feature = by_ubigeo[0]
+    departamento = str(feature.get("NOMBDEP") or "").strip()
+    provincia = str(feature.get("NOMBPROV") or "").strip()
+    distrito = str(feature.get("NOMBDIST") or "").strip()
+    if not all((departamento, provincia, distrito)):
+        raise RuntimeError("La capa distrital no devolvió departamento, provincia y distrito.")
     return {
         "ubigeo": ubigeo,
-        "departamento": item["departamento"],
-        "provincia": item["provincia"],
-        "distrito": item["distrito"],
+        "departamento": departamento,
+        "provincia": provincia,
+        "distrito": distrito,
         "fuente_geografica": "Servicio cartográfico cartografia_base_limites, capa 3",
     }
 
