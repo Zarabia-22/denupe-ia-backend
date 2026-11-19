@@ -264,9 +264,11 @@ def normalizar(valor: str) -> str:
     return re.sub(r"[^a-z0-9 ]+", " ", valor).strip()
 
 
-def _leer_lista(path: Path) -> list[dict]:
-    """Carga y valida el catálogo completo; nunca ignora silenciosamente datos corruptos."""
+def _leer_lista(path: Path, *, required: bool = False) -> list[dict]:
+    """Carga y valida un catálogo; los archivos requeridos no pueden faltar silenciosamente."""
     if not path.exists():
+        if required:
+            raise RuntimeError(f"Falta el directorio obligatorio {path.name}")
         return []
     try:
         with path.open(encoding="utf-8") as archivo:
@@ -303,7 +305,7 @@ def _leer_lista(path: Path) -> list[dict]:
 @lru_cache(maxsize=1)
 def cargar_directorio() -> list[dict]:
     """Carga entidades locales; los registros PNP históricos no se habilitan."""
-    return _leer_lista(DIRECTORIO_PATH) + _leer_lista(COMISARIAS_PATH)
+    return _leer_lista(DIRECTORIO_PATH, required=True) + _leer_lista(COMISARIAS_PATH)
 
 
 MAX_ARCGIS_RESPONSE_BYTES = 1_048_576
