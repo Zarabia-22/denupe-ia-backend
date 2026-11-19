@@ -199,3 +199,17 @@ def test_listar_entidades_disponibles_rechaza_coordenadas_incompletas():
             "latitud": -12.12,
         })
     assert response.status_code == 422
+
+
+def test_listar_entidades_disponibles_incluye_sedapal_para_agua():
+    with TestClient(app) as cliente:
+        response = cliente.get("/api/entidades/disponibles", params={
+            "categoria": "Agua y saneamiento",
+            "departamento": "Lima",
+            "provincia": "Lima",
+            "distrito": "Miraflores",
+        })
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["entidades"]) == 1
+    assert data["entidades"][0]["id"] == "sedapal-lima-callao"

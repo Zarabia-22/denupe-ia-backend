@@ -184,6 +184,12 @@ Ejemplo de solicitud para seguridad:
 }
 ```
 
+### Agua y saneamiento (SEDAPAL)
+
+Para la categoría **Agua y saneamiento**, el motor puede recomendar SEDAPAL cuando el distrito pertenece al ámbito documentado de Lima/Callao y el texto describe una incidencia de red (corte, fuga, tubería, aniego, desagüe o alcantarillado). La cobertura efectiva del predio y su conexión deben confirmarse con SEDAPAL; la recomendación no presume que todos los hogares estén conectados.
+
+Fuentes: Defensoría del Pueblo (ámbito de administración de SEDAPAL, 50 distritos de Lima y Callao) y FONAFE (perfil institucional de SEDAPAL).
+
 ### Otras competencias
 
 - **Limpieza y residuos:** municipalidad distrital, con base en el artículo 80 de la Ley 27972, para limpieza pública local: https://cdn.www.gob.pe/uploads/document/file/9972022/8133550-ley-organica-de-municipalidades-ley-n-27972.pdf.

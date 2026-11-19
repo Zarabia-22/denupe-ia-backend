@@ -261,6 +261,67 @@ def _sugerir_concesionaria_electrica(entrada: EntidadEntrada) -> EntidadSalida:
         )
 
 
+
+def _sugerir_sedapal(entrada: EntidadEntrada) -> EntidadSalida:
+    """Resuelve agua y saneamiento hacia SEDAPAL dentro de su ámbito documentado."""
+    if (normalizar(entrada.departamento), normalizar(entrada.provincia)) not in {
+        ("lima", "lima"),
+        ("callao", "callao"),
+    }:
+        return EntidadSalida(
+            sugerida=False, entidad=None,
+            motivo="La ubicación indicada está fuera del ámbito territorial documentado de SEDAPAL.",
+        )
+
+    distrito = normalizar(entrada.distrito)
+    municipalidades = [
+        item for item in cargar_directorio()
+        if item.get("tipo") in {"municipalidad_distrital", "municipalidad_provincial"}
+        and item.get("verificado_nombre") is True
+        and normalizar(item.get("departamento", "")) == normalizar(entrada.departamento)
+        and normalizar(item.get("provincia", "")) == normalizar(entrada.provincia)
+        and normalizar(item.get("distrito", "")) == distrito
+    ]
+    if len(municipalidades) != 1:
+        return EntidadSalida(
+            sugerida=False, entidad=None,
+            motivo="No se pudo validar el distrito en el directorio territorial de Lima y Callao.",
+        )
+
+    texto = normalizar(f"{entrada.titulo} {entrada.descripcion}")
+    senales = (
+        "agua potable", "corte de agua", "sin agua", "falta de agua",
+        "fuga", "tuberia", "desague", "alcantarillado", "buzon",
+        "aniego", "baja presion", "rotura de tuberia", "colapso",
+    )
+    if not any(normalizar(senal) in texto for senal in senales):
+        return EntidadSalida(
+            sugerida=False, entidad=None,
+            motivo="El texto no permite confirmar que el incidente corresponda a la red de agua potable o alcantarillado.",
+        )
+
+    return EntidadSalida(
+        sugerida=True,
+        entidad={
+            "id": "sedapal-lima-callao",
+            "nombre": "Servicio de Agua Potable y Alcantarillado de Lima (SEDAPAL)",
+            "tipo": "empresa_saneamiento",
+            "direccion": None,
+            "telefono": "317-8000",
+            "sitio_web": "https://www.gob.pe/sedapal",
+            "ambito": {
+                "departamento": entrada.departamento,
+                "provincia": entrada.provincia,
+                "distrito": entrada.distrito,
+            },
+        },
+        motivo=(
+            "El distrito está dentro del ámbito de responsabilidad de SEDAPAL para Lima y Callao "
+            "y el texto describe una incidencia de agua potable o alcantarillado. La cobertura "
+            "efectiva del predio y la conexión al servicio deben confirmarse con SEDAPAL."
+        ),
+    )
+
 def _sugerir_atu(entrada: EntidadEntrada) -> EntidadSalida:
     """Recomienda ATU solo para la subcategoría explícita de transporte público urbano."""
     departamento = normalizar(entrada.departamento)
@@ -296,6 +357,8 @@ def sugerir_entidad(entrada: EntidadEntrada) -> EntidadSalida:
     categoria = normalizar(entrada.categoria)
     if categoria == "alumbrado publico":
         return _sugerir_concesionaria_electrica(entrada)
+    if categoria == "agua y saneamiento":
+        return _sugerir_sedapal(entrada)
     if categoria == "transporte publico urbano de pasajeros":
         return _sugerir_atu(entrada)
     if categoria in {"seguridad ciudadana", "seguridad ciudadana delitos", "delitos", "robo", "asalto", "violencia", "actividad sospechosa"}:
@@ -409,6 +472,8 @@ def listar_entidades_disponibles(
         resultado_geografico = _sugerir_comisaria_por_punto(entrada)
     elif cat == "alumbrado publico":
         resultado_geografico = _sugerir_concesionaria_electrica(entrada)
+    elif cat == "agua y saneamiento":
+        resultado_geografico = _sugerir_sedapal(entrada)
     elif cat == "transporte publico urbano de pasajeros":
         resultado_geografico = _sugerir_atu(entrada)
 

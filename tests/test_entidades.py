@@ -553,3 +553,65 @@ def test_listar_entidades_disponibles_devuelve_vacio_para_distrito_no_catalogado
         "Limpieza y residuos", "Lima", "Lima", "Distrito inexistente"
     )
     assert items == []
+
+
+def test_agua_saneamiento_recomienda_sedapal_en_lima_con_senal_de_red():
+    denuncia = entrada(
+        categoria="Agua y saneamiento",
+        titulo="Fuga de agua potable",
+        descripcion="Una tubería rota derrama agua en la avenida y provoca un aniego.",
+    )
+    salida = sugerir_entidad(denuncia)
+    assert salida.sugerida is True
+    assert salida.entidad.id == "sedapal-lima-callao"
+    assert salida.entidad.tipo == "empresa_saneamiento"
+
+
+def test_agua_saneamiento_recomienda_sedapal_en_callao():
+    denuncia = entrada(
+        categoria="Agua y saneamiento",
+        departamento="Callao",
+        provincia="Callao",
+        distrito="Bellavista",
+        titulo="Corte de agua en el sector",
+        descripcion="Los vecinos reportan que no hay agua potable desde esta mañana.",
+    )
+    salida = sugerir_entidad(denuncia)
+    assert salida.sugerida is True
+    assert salida.entidad.id == "sedapal-lima-callao"
+
+
+def test_agua_saneamiento_no_recomienda_sedapal_fuera_de_su_ambito():
+    denuncia = entrada(
+        categoria="Agua y saneamiento",
+        departamento="Arequipa",
+        provincia="Arequipa",
+        distrito="Arequipa",
+        titulo="Fuga de agua potable",
+        descripcion="Una tubería rota provoca un aniego en la avenida.",
+    )
+    salida = sugerir_entidad(denuncia)
+    assert salida.sugerida is False
+    assert salida.entidad is None
+
+
+def test_agua_saneamiento_se_abstiene_si_el_texto_no_identifica_red():
+    denuncia = entrada(
+        categoria="Agua y saneamiento",
+        titulo="Problema con el servicio",
+        descripcion="Tengo una consulta general sobre mi recibo mensual.",
+    )
+    salida = sugerir_entidad(denuncia)
+    assert salida.sugerida is False
+    assert salida.entidad is None
+
+
+def test_catalogo_disponible_incluye_sedapal_para_agua_en_lima():
+    from app.entidades import listar_entidades_disponibles
+
+    items = listar_entidades_disponibles(
+        "Agua y saneamiento", "Lima", "Lima", "Miraflores"
+    )
+    assert len(items) == 1
+    assert items[0]["id"] == "sedapal-lima-callao"
+    assert items[0]["tipo"] == "empresa_saneamiento"
