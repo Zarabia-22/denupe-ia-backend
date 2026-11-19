@@ -156,9 +156,9 @@ def predecir_entidad(denuncia: EntidadEntrada) -> EntidadSalida:
 )
 def entidades_disponibles(
     categoria: str = Query(min_length=2, max_length=80),
-    departamento: str = Query(min_length=2, max_length=80),
-    provincia: str = Query(min_length=2, max_length=80),
-    distrito: str = Query(min_length=2, max_length=80),
+    departamento: str | None = Query(default=None, min_length=2, max_length=80),
+    provincia: str | None = Query(default=None, min_length=2, max_length=80),
+    distrito: str | None = Query(default=None, min_length=2, max_length=80),
     latitud: float | None = Query(default=None, ge=-90, le=90),
     longitud: float | None = Query(default=None, ge=-180, le=180),
 ) -> EntidadesDisponiblesSalida:
