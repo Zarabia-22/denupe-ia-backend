@@ -727,6 +727,12 @@ def test_post_recomendacion_usa_distrito_resuelto_por_gps(monkeypatch):
     monkeypatch.setattr(main, "resolver_distrito_por_punto", lambda lat, lon: {
         "ubigeo": "150122", "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
     })
+    monkeypatch.setattr(main, "consultar_matriz_distrital", lambda ubigeo: [{"categoria_code": code} for code in (
+        "alumbrado", "seguridad", "limpieza", "agua", "transito", "areas_verdes", "infraestructura", "otros"
+    )])
+    monkeypatch.setattr(main, "consultar_resolutor_categoria", lambda ubigeo, code: {
+        "requiere_gps": True, "asignar_solo_tras_gps": True, "entidad_nombre": "Municipalidad local"
+    })
     denuncia = entrada(
         distrito="San Isidro",
         latitud=-12.12,
@@ -741,6 +747,9 @@ def test_catalogo_disponible_usa_distrito_resuelto_por_gps(monkeypatch):
 
     monkeypatch.setattr(main, "resolver_distrito_por_punto", lambda lat, lon: {
         "ubigeo": "150122", "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
+    })
+    monkeypatch.setattr(main, "consultar_resolutor_categoria", lambda ubigeo, code: {
+        "requiere_gps": True, "asignar_solo_tras_gps": True
     })
     salida = main.entidades_disponibles(
         categoria="Limpieza y residuos",
