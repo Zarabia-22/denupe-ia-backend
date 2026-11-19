@@ -212,21 +212,17 @@ def test_entidades_disponibles_no_ofrece_revision_sin_gps():
 
 def test_entidades_disponibles_consulta_matriz_tras_resolver_gps(monkeypatch):
     from app import main
-    from app.schemas import EntidadPublica
-
     monkeypatch.setattr(main, "resolver_distrito_por_punto", lambda lat, lon: {
         "ubigeo": "150122", "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
     })
     monkeypatch.setattr(main, "consultar_resolutor_categoria", lambda ubigeo, codigo: {
         "requiere_gps": True, "asignar_solo_tras_gps": True,
     })
-    monkeypatch.setattr(main, "listar_entidades_disponibles", lambda *args: [
-        EntidadPublica(
-            id="mun-150122", nombre="Municipalidad Distrital de Miraflores",
-            tipo="municipalidad_distrital",
-            ambito={"departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores"},
-        )
-    ])
+    monkeypatch.setattr(main, "listar_entidades_disponibles", lambda *args: [{
+        "id": "mun-150122", "nombre": "Municipalidad Distrital de Miraflores",
+        "tipo": "municipalidad_distrital",
+        "ambito": {"departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores"},
+    }])
     with TestClient(app) as cliente:
         response = cliente.get("/api/entidades/disponibles", params={
             "categoria": "Limpieza y residuos",
