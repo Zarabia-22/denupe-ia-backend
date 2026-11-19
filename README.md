@@ -199,7 +199,7 @@ Ejemplo de solicitud para seguridad:
 - La consulta PNP y la consulta de concesiones eléctricas usan la biblioteca estándar de Python, sin agregar dependencias de producción.
 - `OSINERGMIN_MAPSERVER_URL`: permite configurar la URL base del servicio oficial de concesiones eléctricas (opcional).
 - `OSINERGMIN_TIMEOUT_SECONDS`: timeout de consulta OSINERGMIN (por defecto 5 segundos).
-- Pruebas agregadas para exigir GPS, resolver jurisdicción PNP por polígono, confirmar el código en la capa operativa, resolver la concesionaria eléctrica por el polígono de OSINERGMIN y abstenerse ante ausencia de coordenadas, ambigüedad, códigos desconocidos o errores del servicio.
+- Pruebas agregadas para exigir GPS, resolver jurisdicción PNP por polígono, confirmar el código en la capa operativa, resolver la concesionaria eléctrica por el polígono de OSINERGMIN, validar ATU en Lima y Callao y abstenerse ante categoría genérica, ámbito territorial incorrecto, ausencia de coordenadas, ambigüedad, códigos desconocidos o errores del servicio.
 
 ### Despliegue
 
