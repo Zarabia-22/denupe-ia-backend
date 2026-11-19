@@ -538,22 +538,24 @@ def test_listar_entidades_disponibles_devuelve_municipalidad_por_categoria_y_ter
     assert items[0]["tipo"] == "municipalidad_distrital"
 
 
-def test_listar_entidades_disponibles_no_confunde_municipalidad_con_competencia_no_habilitada():
+def test_listar_entidades_disponibles_ofrece_revision_si_no_hay_competencia_habilitada():
     from app.entidades import listar_entidades_disponibles
 
     items = listar_entidades_disponibles(
         "Vialidad e infraestructura", "Lima", "Lima", "Miraflores"
     )
-    assert items == []
+    assert len(items) == 1
+    assert items[0]["tipo"] == "revision_competencia"
 
 
-def test_listar_entidades_disponibles_devuelve_vacio_para_distrito_no_catalogado():
+def test_listar_entidades_disponibles_ofrece_revision_para_distrito_no_catalogado():
     from app.entidades import listar_entidades_disponibles
 
     items = listar_entidades_disponibles(
         "Limpieza y residuos", "Lima", "Lima", "Distrito inexistente"
     )
-    assert items == []
+    assert len(items) == 1
+    assert items[0]["tipo"] == "revision_competencia"
 
 
 def test_agua_saneamiento_recomienda_sedapal_en_lima_con_senal_de_red():
