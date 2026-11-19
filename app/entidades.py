@@ -75,6 +75,7 @@ def cargar_directorio() -> list[dict]:
 
 
 MAX_ARCGIS_RESPONSE_BYTES = 1_048_576
+ARCGIS_RETRIES = max(0, int(os.getenv("ARCGIS_RETRIES", "2")))
 
 
 def _leer_atributos_arcgis(response, servicio: str) -> list[dict]:
@@ -87,6 +88,8 @@ def _leer_atributos_arcgis(response, servicio: str) -> list[dict]:
         raise RuntimeError(f"La respuesta de {servicio} no tiene formato JSON de objeto")
     if "error" in payload:
         raise RuntimeError(f"El servicio {servicio} devolvió un error")
+    if payload.get("exceededTransferLimit") is True:
+        raise RuntimeError(f"La respuesta de {servicio} está truncada por el límite de transferencia")
     features = payload.get("features")
     if not isinstance(features, list):
         raise RuntimeError(f"La respuesta de {servicio} no contiene una lista de resultados")
@@ -98,14 +101,36 @@ def _leer_atributos_arcgis(response, servicio: str) -> list[dict]:
     return atributos
 
 
+def _consultar_arcgis(url: str, timeout: float, servicio: str) -> list[dict]:
+    """Consulta ArcGIS con reintentos acotados ante fallos transitorios."""
+    ultimo_error = None
+    for intento in range(ARCGIS_RETRIES + 1):
+        try:
+            with urlopen(url, timeout=timeout) as response:
+                return _leer_atributos_arcgis(response, servicio)
+        except (URLError, HTTPError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            ultimo_error = exc
+            if intento < ARCGIS_RETRIES:
+                from time import sleep
+                sleep(0.15 * (2 ** intento))
+    raise RuntimeError(f"No se pudo consultar el servicio geográfico oficial de {servicio}") from ultimo_error
+
+
+def _unicos_por_atributo(registros: list[dict], atributo: str) -> list[dict]:
+    """Colapsa features duplicadas de una misma entidad, sin ocultar jurisdicciones distintas."""
+    unicos = {}
+    for registro in registros:
+        valor = str(registro.get(atributo) or "").strip().casefold()
+        # Un feature sin clave no puede fusionarse de forma segura con otro.
+        clave = valor if valor else f"__sin_clave_{len(unicos)}"
+        unicos.setdefault(clave, registro)
+    return list(unicos.values())
+
+
 def _arcgis_query(layer: int, params: dict) -> list[dict]:
-    query = {"f": "json", "outFields": "*", "returnGeometry": "false", "resultRecordCount": 2, **params}
+    query = {"f": "json", "outFields": "*", "returnGeometry": "false", "resultRecordCount": 25, **params}
     url = f"{PNP_MAPSERVER}/{layer}/query?{urlencode(query)}"
-    try:
-        with urlopen(url, timeout=PNP_TIMEOUT) as response:
-            return _leer_atributos_arcgis(response, "MININTER")
-    except (URLError, HTTPError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise RuntimeError("No se pudo consultar el servicio geográfico oficial de MININTER") from exc
+    return _consultar_arcgis(url, PNP_TIMEOUT, "MININTER")
 
 
 def _sugerir_comisaria_por_punto(entrada: EntidadEntrada) -> EntidadSalida:
@@ -125,7 +150,7 @@ def _sugerir_comisaria_por_punto(entrada: EntidadEntrada) -> EntidadSalida:
         "returnGeometry": "false",
     }
     try:
-        jurisdicciones = _arcgis_query(2, spatial)
+        jurisdicciones = _unicos_por_atributo(_arcgis_query(2, spatial), "cod_cpnp")
         if len(jurisdicciones) != 1:
             return EntidadSalida(sugerida=False, entidad=None, motivo="La ubicación no intersecta una única jurisdicción policial identificable. Se requiere revisión manual.")
         attrs = jurisdicciones[0]
@@ -134,7 +159,10 @@ def _sugerir_comisaria_por_punto(entrada: EntidadEntrada) -> EntidadSalida:
         if not codigo or not nombre:
             return EntidadSalida(sugerida=False, entidad=None, motivo="La capa de jurisdicciones no devolvió identificadores suficientes de la comisaría.")
         # Confirmar que el código también existe en la capa de comisarías (puntos operativos publicados).
-        activos = _arcgis_query(0, {"where": f"cod_cpnp='{codigo.replace(chr(39), chr(39)*2)}'", "outFields": "comisaria,cod_cpnp,departamento,provincia,distrito", "returnGeometry": "false"})
+        activos = _unicos_por_atributo(
+            _arcgis_query(0, {"where": f"cod_cpnp='{codigo.replace(chr(39), chr(39)*2)}'", "outFields": "comisaria,cod_cpnp,departamento,provincia,distrito", "returnGeometry": "false"}),
+            "cod_cpnp",
+        )
         if len(activos) != 1:
             return EntidadSalida(sugerida=False, entidad=None, motivo="La comisaría de la jurisdicción no pudo confirmarse en la capa operativa de comisarías. Se requiere revisión manual.")
         activo = activos[0]
@@ -162,13 +190,9 @@ def _sugerir_comisaria_por_punto(entrada: EntidadEntrada) -> EntidadSalida:
 
 def _arcgis_query_osinergmin(layer: int, params: dict) -> list[dict]:
     """Consulta capas públicas de concesiones eléctricas de OSINERGMIN."""
-    query = {"f": "json", "outFields": "*", "returnGeometry": "false", "resultRecordCount": 2, **params}
+    query = {"f": "json", "outFields": "*", "returnGeometry": "false", "resultRecordCount": 25, **params}
     url = f"{OSINERGMIN_MAPSERVER}/{layer}/query?{urlencode(query)}"
-    try:
-        with urlopen(url, timeout=OSINERGMIN_TIMEOUT) as response:
-            return _leer_atributos_arcgis(response, "OSINERGMIN")
-    except (URLError, HTTPError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise RuntimeError("No se pudo consultar el mapa oficial de concesiones eléctricas de OSINERGMIN") from exc
+    return _consultar_arcgis(url, OSINERGMIN_TIMEOUT, "OSINERGMIN")
 
 
 def _sugerir_concesionaria_electrica(entrada: EntidadEntrada) -> EntidadSalida:
@@ -200,7 +224,7 @@ def _sugerir_concesionaria_electrica(entrada: EntidadEntrada) -> EntidadSalida:
         "SERSA": "SERS", "EIHC": "Eilhicha",
     }
     try:
-        concesiones = _arcgis_query_osinergmin(33, spatial)
+        concesiones = _unicos_por_atributo(_arcgis_query_osinergmin(33, spatial), "CODEMP")
         if len(concesiones) != 1:
             return EntidadSalida(
                 sugerida=False, entidad=None,
@@ -237,6 +261,77 @@ def _sugerir_concesionaria_electrica(entrada: EntidadEntrada) -> EntidadSalida:
         )
 
 
+
+def _sugerir_sedapal(
+    entrada: EntidadEntrada,
+    *,
+    exigir_senal_textual: bool = True,
+) -> EntidadSalida:
+    """Resuelve agua y saneamiento hacia SEDAPAL dentro de su ámbito documentado."""
+    if (normalizar(entrada.departamento), normalizar(entrada.provincia)) not in {
+        ("lima", "lima"),
+        ("callao", "callao"),
+    }:
+        return EntidadSalida(
+            sugerida=False, entidad=None,
+            motivo="La ubicación indicada está fuera del ámbito territorial documentado de SEDAPAL.",
+        )
+
+    distrito = normalizar(entrada.distrito)
+    municipalidades = [
+        item for item in cargar_directorio()
+        if item.get("tipo") in {"municipalidad_distrital", "municipalidad_provincial"}
+        and item.get("verificado_nombre") is True
+        and normalizar(item.get("departamento", "")) == normalizar(entrada.departamento)
+        and normalizar(item.get("provincia", "")) == normalizar(entrada.provincia)
+        and normalizar(item.get("distrito", "")) == distrito
+    ]
+    if len(municipalidades) != 1:
+        return EntidadSalida(
+            sugerida=False, entidad=None,
+            motivo="No se pudo validar el distrito en el directorio territorial de Lima y Callao.",
+        )
+
+    texto = normalizar(f"{entrada.titulo} {entrada.descripcion}")
+    senales = (
+        "agua potable", "corte de agua", "sin agua", "falta de agua",
+        "fuga", "tuberia", "desague", "alcantarillado", "buzon",
+        "aniego", "baja presion", "rotura de tuberia", "colapso",
+        "no hay agua", "no llega agua", "agua no llega", "no sale agua",
+        "corte", "servicio de agua", "problema de agua",
+    )
+    if exigir_senal_textual and not any(normalizar(senal) in texto for senal in senales):
+        return EntidadSalida(
+            sugerida=False, entidad=None,
+            motivo="El texto no permite confirmar que el incidente corresponda a la red de agua potable o alcantarillado.",
+        )
+
+    return EntidadSalida(
+        sugerida=True,
+        entidad={
+            "id": "sedapal-lima-callao",
+            "nombre": "Servicio de Agua Potable y Alcantarillado de Lima (SEDAPAL)",
+            "tipo": "empresa_saneamiento",
+            "direccion": None,
+            "telefono": "317-8000",
+            "sitio_web": "https://www.gob.pe/sedapal",
+            "ambito": {
+                "departamento": entrada.departamento,
+                "provincia": entrada.provincia,
+                "distrito": entrada.distrito,
+            },
+        },
+        motivo=(
+            "El distrito está dentro del ámbito de responsabilidad de SEDAPAL para Lima y Callao. "
+            + (
+                "El texto describe una incidencia de agua potable o alcantarillado. "
+                if exigir_senal_textual else
+                "La categoría corresponde a agua y saneamiento; confirma que el predio está conectado al servicio. "
+            )
+            + "La cobertura efectiva del predio debe confirmarse con SEDAPAL."
+        ),
+    )
+
 def _sugerir_atu(entrada: EntidadEntrada) -> EntidadSalida:
     """Recomienda ATU solo para la subcategoría explícita de transporte público urbano."""
     departamento = normalizar(entrada.departamento)
@@ -268,14 +363,54 @@ def _sugerir_atu(entrada: EntidadEntrada) -> EntidadSalida:
         motivo="La categoría seleccionada corresponde específicamente al transporte público urbano de pasajeros y la provincia indicada está dentro del ámbito de la ATU. La recomendación requiere revisión humana del tipo de incidente.",
     )
 
+
+def _sugerir_revision_competencia(
+    entrada: EntidadEntrada,
+    motivo_origen: str,
+) -> EntidadSalida:
+    """Destino interno seguro cuando no se identifica una entidad pública única."""
+    return EntidadSalida(
+        sugerida=True,
+        entidad={
+            "id": "revision-competencia",
+            "nombre": "Revisión de competencia (DenuPe)",
+            "tipo": "revision_competencia",
+            "direccion": None,
+            "telefono": None,
+            "sitio_web": None,
+            "ambito": {
+                "departamento": entrada.departamento,
+                "provincia": entrada.provincia,
+                "distrito": entrada.distrito,
+            },
+        },
+        motivo=(
+            "No se pudo confirmar una institución pública específica para esta categoría y ubicación. "
+            "Se propone la bandeja interna de Revisión de competencia de DenuPe para que el personal "
+            "determine el organismo responsable. Este destino es una cola interna, no una entidad pública externa. "
+            + motivo_origen
+        ),
+    )
+
+
+def _con_respaldo_revision(
+    entrada: EntidadEntrada,
+    resultado: EntidadSalida,
+) -> EntidadSalida:
+    if resultado.sugerida and resultado.entidad is not None:
+        return resultado
+    return _sugerir_revision_competencia(entrada, resultado.motivo)
+
 def sugerir_entidad(entrada: EntidadEntrada) -> EntidadSalida:
     categoria = normalizar(entrada.categoria)
     if categoria == "alumbrado publico":
-        return _sugerir_concesionaria_electrica(entrada)
+        return _con_respaldo_revision(entrada, _sugerir_concesionaria_electrica(entrada))
+    if categoria == "agua y saneamiento":
+        return _con_respaldo_revision(entrada, _sugerir_sedapal(entrada))
     if categoria == "transporte publico urbano de pasajeros":
-        return _sugerir_atu(entrada)
+        return _con_respaldo_revision(entrada, _sugerir_atu(entrada))
     if categoria in {"seguridad ciudadana", "seguridad ciudadana delitos", "delitos", "robo", "asalto", "violencia", "actividad sospechosa"}:
-        return _sugerir_comisaria_por_punto(entrada)
+        return _con_respaldo_revision(entrada, _sugerir_comisaria_por_punto(entrada))
 
     distrito = normalizar(entrada.distrito)
     provincia = normalizar(entrada.provincia)
@@ -302,10 +437,16 @@ def sugerir_entidad(entrada: EntidadEntrada) -> EntidadSalida:
         candidatos.append((len(coincidencias), entidad))
 
     if not candidatos:
-        return EntidadSalida(sugerida=False, entidad=None, motivo="No se encontró una entidad habilitada y verificada para la categoría y jurisdicción indicadas. Se requiere revisión manual.")
+        return _sugerir_revision_competencia(
+            entrada,
+            "No existe una regla habilitada o un registro territorial suficiente para la categoría.",
+        )
     candidatos.sort(key=lambda item: item[0], reverse=True)
     if len(candidatos) > 1 and candidatos[0][0] == candidatos[1][0]:
-        return EntidadSalida(sugerida=False, entidad=None, motivo="Hay más de una entidad candidata con evidencia equivalente. Se requiere revisión manual.")
+        return _sugerir_revision_competencia(
+            entrada,
+            "Hay más de una entidad candidata con evidencia equivalente.",
+        )
 
     registro = candidatos[0][1]
     return EntidadSalida(
@@ -318,3 +459,91 @@ def sugerir_entidad(entrada: EntidadEntrada) -> EntidadSalida:
         },
         motivo="La categoría, la jurisdicción y los términos de la descripción coinciden con el registro habilitado de esta entidad.",
     )
+
+
+def listar_entidades_disponibles(
+    categoria: str,
+    departamento: str,
+    provincia: str,
+    distrito: str,
+    latitud: float | None = None,
+    longitud: float | None = None,
+) -> list[dict]:
+    """Devuelve entidades verificadas o revisión interna cuando no hay coincidencia.
+
+    No inventa instituciones: los organismos públicos se filtran por catálogo y
+    competencia, y las entidades geoespaciales requieren una coincidencia única.
+    Si no hay una opción externa verificable, ofrece la bandeja interna de revisión.
+    """
+    cat = normalizar(categoria)
+    dep = normalizar(departamento)
+    prov = normalizar(provincia)
+    dis = normalizar(distrito)
+    resultados: list[dict] = []
+
+    for registro in cargar_directorio():
+        if not registro.get("verificado_nombre") or not registro.get("verificado_competencias"):
+            continue
+        if (
+            normalizar(registro.get("departamento", "")) != dep
+            or normalizar(registro.get("provincia", "")) != prov
+            or normalizar(registro.get("distrito", "")) != dis
+        ):
+            continue
+        categorias = {
+            normalizar(item)
+            for item in registro.get("categorias_habilitadas", [])
+        }
+        if cat not in categorias:
+            continue
+        resultados.append({
+            "id": registro["id"],
+            "nombre": registro["nombre"],
+            "tipo": registro["tipo"],
+            "direccion": registro.get("direccion"),
+            "telefono": registro.get("telefono"),
+            "sitio_web": registro.get("sitio_web"),
+            "ambito": {
+                "departamento": registro["departamento"],
+                "provincia": registro["provincia"],
+                "distrito": registro["distrito"],
+            },
+        })
+
+    # Instituciones cuya competencia depende del punto GPS, no solo del distrito.
+    entrada = EntidadEntrada(
+        categoria=categoria,
+        departamento=departamento,
+        provincia=provincia,
+        distrito=distrito,
+        titulo="Consulta manual de institución competente",
+        descripcion="Consulta manual del catálogo de instituciones disponibles.",
+        latitud=latitud,
+        longitud=longitud,
+    )
+    resultado_geografico = None
+    if cat in {"seguridad ciudadana", "seguridad ciudadana delitos", "delitos", "robo", "asalto", "violencia", "actividad sospechosa"}:
+        resultado_geografico = _sugerir_comisaria_por_punto(entrada)
+    elif cat == "alumbrado publico":
+        resultado_geografico = _sugerir_concesionaria_electrica(entrada)
+    elif cat == "agua y saneamiento":
+        # El endpoint de catálogo no recibe título ni descripción; la competencia
+        # territorial se lista por categoría y ámbito, y el POST valida el texto.
+        resultado_geografico = _sugerir_sedapal(entrada, exigir_senal_textual=False)
+    elif cat == "transporte publico urbano de pasajeros":
+        resultado_geografico = _sugerir_atu(entrada)
+
+    if resultado_geografico and resultado_geografico.sugerida and resultado_geografico.entidad:
+        item = resultado_geografico.entidad.model_dump() if hasattr(resultado_geografico.entidad, "model_dump") else dict(resultado_geografico.entidad)
+        if not any(actual["id"] == item["id"] for actual in resultados):
+            resultados.append(item)
+
+    if not resultados:
+        revision = _sugerir_revision_competencia(
+            entrada,
+            "El catálogo no contiene una institución pública habilitada para la categoría y ubicación solicitadas.",
+        )
+        item = revision.entidad.model_dump() if hasattr(revision.entidad, "model_dump") else dict(revision.entidad)
+        resultados.append(item)
+
+    return sorted(resultados, key=lambda item: normalizar(item["nombre"]))

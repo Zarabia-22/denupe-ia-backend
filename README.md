@@ -116,7 +116,7 @@ Ejemplo de solicitud:
 }
 ```
 
-La respuesta contiene `sugerida`, `entidad` (identificador, nombre, tipo, datos de contacto disponibles y ámbito territorial) y `motivo`. Si no hay coincidencia o existen candidatos equivalentes, devuelve `sugerida: false` y no asigna una institución. La selección y derivación final deben seguir bajo control del ciudadano o del personal responsable.
+La respuesta contiene `sugerida`, `entidad` (identificador, nombre, tipo, datos de contacto disponibles y ámbito territorial) y `motivo`. Si no hay coincidencia o existen candidatos equivalentes, devuelve el destino interno `revision_competencia`; no lo presenta como institución pública externa. La selección y derivación final deben seguir bajo control del ciudadano o del personal responsable.
 
 **Estado del directorio:** `data/entidades_publicas.json` contiene 50 registros municipales de Lima Metropolitana y Callao. Los registros tienen nombre y ámbito territorial contrastados con el directorio del INEI 2026. La matriz habilita únicamente Limpieza y residuos y Parques y áreas verdes; el campo `verificado_competencias` no debe interpretarse como autorización para las demás categorías. Las 46 referencias PNP históricas están separadas y deshabilitadas. La lógica municipal es una coincidencia territorial y temática basada en catálogo; no es un nuevo modelo de aprendizaje automático ni una validación legal individual de cada incidente.
 
@@ -155,6 +155,8 @@ Fuentes normativas y de datos:
 - Padrón de comisarías operativas PNP 2026: https://www.gob.pe/institucion/pnp/informes-publicaciones/7531378-linea-base-de-informacion-georreferenciada-de-comisarias-basicas-relacion-de-comisarias-operativas-a-nivel-nacional-2026
 - Comisarías PNP con demarcación territorial: https://www.gob.pe/institucion/pnp/informes-publicaciones/7173744-comisarias-de-la-policia-nacional-del-peru-con-demarcacion-territorial
 
+Cuando no se identifica una institución pública única, el endpoint propone el destino interno `revision_competencia` (Bandeja de revisión de competencia de DenuPe). Este receptor permite que las denuncias válidas no queden sin destino, pero **no equivale a identificar a la entidad pública final**. El personal debe revisar y reasignar cuando corresponda.
+
 La recomendación es una ayuda informativa: no ejecuta una derivación administrativa ni sustituye la revisión de la entidad competente. Cuando una categoría no esté habilitada o no haya registro territorial verificable, el endpoint responde `sugerida: false`.
 
 
@@ -183,6 +185,12 @@ Ejemplo de solicitud para seguridad:
   "longitud": -77.03
 }
 ```
+
+### Agua y saneamiento (SEDAPAL)
+
+Para la categoría **Agua y saneamiento**, el motor puede recomendar SEDAPAL cuando el distrito pertenece al ámbito documentado de Lima/Callao y el texto describe una incidencia de red (corte, fuga, tubería, aniego, desagüe o alcantarillado). La cobertura efectiva del predio y su conexión deben confirmarse con SEDAPAL; la recomendación no presume que todos los hogares estén conectados.
+
+Fuentes: [Informe Defensorial sobre SEDAPAL](https://www.defensoria.gob.pe/wp-content/uploads/2025/03/Informe_Defensorial_Agua19.03.pdf) (ámbito de administración de SEDAPAL, 50 distritos de Lima y Callao) y [FONAFE](https://www.fonafe.gob.pe/empresasdelacorporacion/sedapalsa) (perfil institucional de SEDAPAL).
 
 ### Otras competencias
 

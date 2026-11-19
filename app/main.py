@@ -4,12 +4,12 @@ import os
 
 from .middleware import RequestProtectionMiddleware
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from .predictor import cargar_modelo, sugerir_categoria
-from .entidades import sugerir_entidad, cargar_directorio
-from .schemas import DenunciaEntrada, SugerenciaSalida, EntidadEntrada, EntidadSalida
+from .entidades import sugerir_entidad, cargar_directorio, listar_entidades_disponibles
+from .schemas import DenunciaEntrada, SugerenciaSalida, EntidadEntrada, EntidadSalida, EntidadesDisponiblesSalida
 
 
 @asynccontextmanager
@@ -75,5 +75,32 @@ def predecir(denuncia: DenunciaEntrada) -> SugerenciaSalida:
     tags=["Derivación inteligente"],
 )
 def predecir_entidad(denuncia: EntidadEntrada) -> EntidadSalida:
-    """Recomienda una entidad solo si existe coincidencia territorial verificable."""
+    """Devuelve una entidad pública verificada o la bandeja interna de revisión."""
     return sugerir_entidad(denuncia)
+
+@app.get(
+    "/api/entidades/disponibles",
+    response_model=EntidadesDisponiblesSalida,
+    tags=["Catálogo de instituciones"],
+)
+def entidades_disponibles(
+    categoria: str = Query(min_length=2, max_length=80),
+    departamento: str = Query(min_length=2, max_length=80),
+    provincia: str = Query(min_length=2, max_length=80),
+    distrito: str = Query(min_length=2, max_length=80),
+    latitud: float | None = Query(default=None, ge=-90, le=90),
+    longitud: float | None = Query(default=None, ge=-180, le=180),
+) -> EntidadesDisponiblesSalida:
+    """Lista entidades verificadas o el destino interno de revisión como respaldo."""
+    if (latitud is None) != (longitud is None):
+        raise HTTPException(status_code=422, detail="latitud y longitud deben enviarse juntas")
+    items = listar_entidades_disponibles(
+        categoria, departamento, provincia, distrito, latitud, longitud
+    )
+    tiene_revision = any(item.get("tipo") == "revision_competencia" for item in items)
+    motivo = (
+        "No se identificó una institución pública específica. Puedes asignar la denuncia a la bandeja interna de revisión de competencia."
+        if tiene_revision else
+        "Selecciona una institución con competencia validada para esta denuncia."
+    )
+    return EntidadesDisponiblesSalida(entidades=items, motivo=motivo)

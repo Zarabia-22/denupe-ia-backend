@@ -73,3 +73,8 @@ class EntidadSalida(BaseModel):
     sugerida: bool
     entidad: EntidadPublica | None = None
     motivo: str
+
+class EntidadesDisponiblesSalida(BaseModel):
+    """Destinos de derivación: entidades verificadas o revisión interna."""
+    entidades: list[EntidadPublica] = Field(default_factory=list)
+    motivo: str = "Las instituciones se filtran por categoría y jurisdicción."
