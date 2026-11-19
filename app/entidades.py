@@ -119,13 +119,14 @@ def _unicos_por_atributo(registros: list[dict], atributo: str) -> list[dict]:
     unicos = {}
     for registro in registros:
         valor = str(registro.get(atributo) or "").strip().casefold()
-        if valor:
-            unicos.setdefault(valor, registro)
+        # Un feature sin clave no puede fusionarse de forma segura con otro.
+        clave = valor if valor else f"__sin_clave_{len(unicos)}"
+        unicos.setdefault(clave, registro)
     return list(unicos.values())
 
 
 def _arcgis_query(layer: int, params: dict) -> list[dict]:
-    query = {"f": "json", "outFields": "*", "returnGeometry": "false", "resultRecordCount": 2, **params}
+    query = {"f": "json", "outFields": "*", "returnGeometry": "false", "resultRecordCount": 25, **params}
     url = f"{PNP_MAPSERVER}/{layer}/query?{urlencode(query)}"
     return _consultar_arcgis(url, PNP_TIMEOUT, "MININTER")
 

@@ -410,7 +410,7 @@ def test_arcgis_limita_resultados_y_valida_atributos(monkeypatch):
     monkeypatch.setattr(entidades, "urlopen", fake_urlopen)
     salida = entidades._arcgis_query(2, {"geometryType": "esriGeometryPoint"})
     assert salida == [{"cod_cpnp": "123"}]
-    assert "resultRecordCount=2" in captured["url"]
+    assert "resultRecordCount=25" in captured["url"]
 
 
 def test_arcgis_rechaza_respuesta_demasiado_grande(monkeypatch):
@@ -499,3 +499,28 @@ def test_arcgis_reintenta_ante_timeout_transitorio(monkeypatch):
     monkeypatch.setattr(entidades, "ARCGIS_RETRIES", 1)
     assert entidades._arcgis_query(2, {}) == [{"cod_cpnp": "123"}]
     assert llamadas["total"] == 2
+
+
+
+def test_arcgis_rechaza_resultados_truncados_por_el_servicio(monkeypatch):
+    import io
+    import pytest
+    from app import entidades
+
+    payload = b'{"exceededTransferLimit":true,"features":[{"attributes":{"cod_cpnp":"123"}}]}'
+    monkeypatch.setattr(entidades, "urlopen", lambda url, timeout: io.BytesIO(payload))
+    with pytest.raises(RuntimeError, match="truncada"):
+        entidades._arcgis_query(2, {})
+
+
+def test_un_resultado_sin_codigo_no_se_descarta_al_resolver_jurisdiccion(monkeypatch):
+    from app import entidades
+
+    monkeypatch.setattr(entidades, "_arcgis_query", lambda layer, params: (
+        [{"cod_cpnp": "1234"}, {"comisaria": "Registro sin código"}] if layer == 2 else []
+    ))
+    denuncia = entrada(categoria="Seguridad ciudadana", titulo="Robo en la calle",
+        descripcion="Reporto un robo cerca del parque.", latitud=-12.12, longitud=-77.03)
+    salida = sugerir_entidad(denuncia)
+    assert salida.sugerida is False
+    assert salida.entidad is None
