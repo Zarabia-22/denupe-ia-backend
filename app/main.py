@@ -4,7 +4,7 @@ import os
 
 from .middleware import RequestProtectionMiddleware
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from .predictor import cargar_modelo, sugerir_categoria
@@ -92,6 +92,8 @@ def entidades_disponibles(
     longitud: float | None = Query(default=None, ge=-180, le=180),
 ) -> EntidadesDisponiblesSalida:
     """Lista opciones manuales validadas para la categoría y ubicación."""
+    if (latitud is None) != (longitud is None):
+        raise HTTPException(status_code=422, detail="latitud y longitud deben enviarse juntas")
     items = listar_entidades_disponibles(
         categoria, departamento, provincia, distrito, latitud, longitud
     )
