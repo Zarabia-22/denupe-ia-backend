@@ -97,9 +97,10 @@ def entidades_disponibles(
     items = listar_entidades_disponibles(
         categoria, departamento, provincia, distrito, latitud, longitud
     )
+    tiene_revision = any(item.get("tipo") == "revision_competencia" for item in items)
     motivo = (
+        "No se identificó una institución pública específica. Puedes asignar la denuncia a la bandeja interna de revisión de competencia."
+        if tiene_revision else
         "Selecciona una institución con competencia validada para esta denuncia."
-        if items else
-        "No hay instituciones verificadas para esta categoría y ubicación. La denuncia puede pasar a revisión de competencia."
     )
     return EntidadesDisponiblesSalida(entidades=items, motivo=motivo)

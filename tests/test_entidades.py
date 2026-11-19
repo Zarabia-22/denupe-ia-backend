@@ -23,8 +23,8 @@ def test_sin_entidades_registradas_se_abstiene(tmp_path, monkeypatch):
     monkeypatch.setattr("app.entidades.COMISARIAS_PATH", tmp_path / "no-comisarias.json")
     cargar_directorio.cache_clear()
     salida = sugerir_entidad(entrada())
-    assert salida.sugerida is False
-    assert salida.entidad is None
+    assert salida.sugerida is True
+    assert salida.entidad.tipo == "revision_competencia"
     assert salida.motivo
 
 
@@ -76,8 +76,8 @@ def test_no_recomienda_entidad_de_otro_distrito(tmp_path, monkeypatch):
     cargar_directorio.cache_clear()
 
     salida = sugerir_entidad(entrada())
-    assert salida.sugerida is False
-    assert salida.entidad is None
+    assert salida.sugerida is True
+    assert salida.entidad.tipo == "revision_competencia"
     cargar_directorio.cache_clear()
 
 
@@ -109,8 +109,8 @@ def test_comisaria_historica_no_se_recomienda_automaticamente(tmp_path, monkeypa
         descripcion="Reporto un robo ocurrido cerca de mi domicilio.",
     )
     salida = sugerir_entidad(denuncia)
-    assert salida.sugerida is False
-    assert salida.entidad is None
+    assert salida.sugerida is True
+    assert salida.entidad.tipo == "revision_competencia"
     cargar_directorio.cache_clear()
 
 
@@ -164,8 +164,8 @@ def test_categoria_sin_competencia_verificada_no_se_recomienda(tmp_path, monkeyp
         descripcion="La luminaria de la calle no funciona desde ayer.",
     )
     salida = sugerir_entidad(denuncia)
-    assert salida.sugerida is False
-    assert salida.entidad is None
+    assert salida.sugerida is True
+    assert salida.entidad.tipo == "revision_competencia"
     cargar_directorio.cache_clear()
 
 
@@ -176,7 +176,8 @@ def test_pnp_exige_coordenadas_para_resolver_jurisdiccion():
         descripcion="Una persona reporta un robo ocurrido en la vía pública.",
     )
     salida = sugerir_entidad(denuncia)
-    assert salida.sugerida is False
+    assert salida.sugerida is True
+    assert salida.entidad.tipo == "revision_competencia"
     assert "GPS" in salida.motivo
 
 
@@ -227,8 +228,8 @@ def test_pnp_se_abstiene_si_el_codigo_no_aparece_en_capa_operativa(monkeypatch):
         longitud=-77.03,
     )
     salida = sugerir_entidad(denuncia)
-    assert salida.sugerida is False
-    assert salida.entidad is None
+    assert salida.sugerida is True
+    assert salida.entidad.tipo == "revision_competencia"
 
 def test_alumbrado_exige_coordenadas_para_identificar_concesionaria():
     denuncia = entrada(
@@ -237,8 +238,8 @@ def test_alumbrado_exige_coordenadas_para_identificar_concesionaria():
         descripcion="La luminaria de la calle no funciona desde hace varios días.",
     )
     salida = sugerir_entidad(denuncia)
-    assert salida.sugerida is False
-    assert salida.entidad is None
+    assert salida.sugerida is True
+    assert salida.entidad.tipo == "revision_competencia"
     assert "GPS" in salida.motivo
 
 

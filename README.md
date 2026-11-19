@@ -155,6 +155,8 @@ Fuentes normativas y de datos:
 - Padrón de comisarías operativas PNP 2026: https://www.gob.pe/institucion/pnp/informes-publicaciones/7531378-linea-base-de-informacion-georreferenciada-de-comisarias-basicas-relacion-de-comisarias-operativas-a-nivel-nacional-2026
 - Comisarías PNP con demarcación territorial: https://www.gob.pe/institucion/pnp/informes-publicaciones/7173744-comisarias-de-la-policia-nacional-del-peru-con-demarcacion-territorial
 
+Cuando no se identifica una institución pública única, el endpoint propone el destino interno `revision_competencia` (Bandeja de revisión de competencia de DenuPe). Este receptor permite que las denuncias válidas no queden sin destino, pero **no equivale a identificar a la entidad pública final**. El personal debe revisar y reasignar cuando corresponda.
+
 La recomendación es una ayuda informativa: no ejecuta una derivación administrativa ni sustituye la revisión de la entidad competente. Cuando una categoría no esté habilitada o no haya registro territorial verificable, el endpoint responde `sugerida: false`.
 
 

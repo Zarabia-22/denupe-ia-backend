@@ -186,7 +186,8 @@ def test_listar_entidades_disponibles_no_expone_categoria_no_habilitada():
             "distrito": "Miraflores",
         })
     assert response.status_code == 200
-    assert response.json()["entidades"] == []
+    assert len(response.json()["entidades"]) == 1
+    assert response.json()["entidades"][0]["tipo"] == "revision_competencia"
 
 
 def test_listar_entidades_disponibles_rechaza_coordenadas_incompletas():

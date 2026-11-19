@@ -363,16 +363,54 @@ def _sugerir_atu(entrada: EntidadEntrada) -> EntidadSalida:
         motivo="La categoría seleccionada corresponde específicamente al transporte público urbano de pasajeros y la provincia indicada está dentro del ámbito de la ATU. La recomendación requiere revisión humana del tipo de incidente.",
     )
 
+
+def _sugerir_revision_competencia(
+    entrada: EntidadEntrada,
+    motivo_origen: str,
+) -> EntidadSalida:
+    """Destino interno seguro cuando no se identifica una entidad pública única."""
+    return EntidadSalida(
+        sugerida=True,
+        entidad={
+            "id": "revision-competencia",
+            "nombre": "Revisión de competencia (DenuPe)",
+            "tipo": "revision_competencia",
+            "direccion": None,
+            "telefono": None,
+            "sitio_web": None,
+            "ambito": {
+                "departamento": entrada.departamento,
+                "provincia": entrada.provincia,
+                "distrito": entrada.distrito,
+            },
+        },
+        motivo=(
+            "No se pudo confirmar una institución pública específica para esta categoría y ubicación. "
+            "Se propone la bandeja interna de Revisión de competencia de DenuPe para que el personal "
+            "determine el organismo responsable. Este destino es una cola interna, no una entidad pública externa. "
+            + motivo_origen
+        ),
+    )
+
+
+def _con_respaldo_revision(
+    entrada: EntidadEntrada,
+    resultado: EntidadSalida,
+) -> EntidadSalida:
+    if resultado.sugerida and resultado.entidad is not None:
+        return resultado
+    return _sugerir_revision_competencia(entrada, resultado.motivo)
+
 def sugerir_entidad(entrada: EntidadEntrada) -> EntidadSalida:
     categoria = normalizar(entrada.categoria)
     if categoria == "alumbrado publico":
-        return _sugerir_concesionaria_electrica(entrada)
+        return _con_respaldo_revision(entrada, _sugerir_concesionaria_electrica(entrada))
     if categoria == "agua y saneamiento":
-        return _sugerir_sedapal(entrada)
+        return _con_respaldo_revision(entrada, _sugerir_sedapal(entrada))
     if categoria == "transporte publico urbano de pasajeros":
-        return _sugerir_atu(entrada)
+        return _con_respaldo_revision(entrada, _sugerir_atu(entrada))
     if categoria in {"seguridad ciudadana", "seguridad ciudadana delitos", "delitos", "robo", "asalto", "violencia", "actividad sospechosa"}:
-        return _sugerir_comisaria_por_punto(entrada)
+        return _con_respaldo_revision(entrada, _sugerir_comisaria_por_punto(entrada))
 
     distrito = normalizar(entrada.distrito)
     provincia = normalizar(entrada.provincia)
@@ -399,10 +437,16 @@ def sugerir_entidad(entrada: EntidadEntrada) -> EntidadSalida:
         candidatos.append((len(coincidencias), entidad))
 
     if not candidatos:
-        return EntidadSalida(sugerida=False, entidad=None, motivo="No se encontró una entidad habilitada y verificada para la categoría y jurisdicción indicadas. Se requiere revisión manual.")
+        return _sugerir_revision_competencia(
+            entrada,
+            "No existe una regla habilitada o un registro territorial suficiente para la categoría.",
+        )
     candidatos.sort(key=lambda item: item[0], reverse=True)
     if len(candidatos) > 1 and candidatos[0][0] == candidatos[1][0]:
-        return EntidadSalida(sugerida=False, entidad=None, motivo="Hay más de una entidad candidata con evidencia equivalente. Se requiere revisión manual.")
+        return _sugerir_revision_competencia(
+            entrada,
+            "Hay más de una entidad candidata con evidencia equivalente.",
+        )
 
     registro = candidatos[0][1]
     return EntidadSalida(
@@ -493,5 +537,13 @@ def listar_entidades_disponibles(
         item = resultado_geografico.entidad.model_dump() if hasattr(resultado_geografico.entidad, "model_dump") else dict(resultado_geografico.entidad)
         if not any(actual["id"] == item["id"] for actual in resultados):
             resultados.append(item)
+
+    if not resultados:
+        revision = _sugerir_revision_competencia(
+            entrada,
+            "El catálogo no contiene una institución pública habilitada para la categoría y ubicación solicitadas.",
+        )
+        item = revision.entidad.model_dump() if hasattr(revision.entidad, "model_dump") else dict(revision.entidad)
+        resultados.append(item)
 
     return sorted(resultados, key=lambda item: normalizar(item["nombre"]))

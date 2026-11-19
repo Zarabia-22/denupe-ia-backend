@@ -103,5 +103,5 @@
       "fuente": "https://www.leyes.congreso.gob.pe/documentos/2016_2021/adlp/normas_legales/30900_ley.pdf"
     }
   ],
-  "regla_general": "Solo se recomienda una entidad si la regla de competencia está habilitada y el dato territorial ha sido validado. Ante datos insuficientes, ambigüedad o fallo del servicio oficial, sugerida=false."
+  "regla_general": "Solo se recomienda una entidad pública cuando la competencia y el territorio están verificados. Si faltan datos, hay ambigüedad, una categoría no está habilitada o falla un servicio oficial, se propone el destino interno revision_competencia; este destino no se presenta como institución pública externa."
 }
