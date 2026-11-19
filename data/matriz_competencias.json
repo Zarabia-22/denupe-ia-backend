@@ -65,14 +65,18 @@
     },
     {
       "categoria": "Vialidad e infraestructura",
-      "entidad": "Entidad titular de la vía",
+      "entidad": "Pendiente de identificar por tramo: MTC, gobierno regional, municipalidad provincial o municipalidad distrital",
       "habilitada": false,
       "condiciones": [
-        "Determinar jerarquía y titularidad: local, metropolitana, nacional o concesionada",
-        "No asignar por distrito sin inventario oficial de vías"
+        "Se requiere latitud y longitud y una capa consultable que identifique el tramo exacto",
+        "Clasificar la vía como Red Vial Nacional, Departamental/Regional, Provincial o Urbana/vecinal",
+        "Red Vial Nacional: MTC; Red Vial Departamental/Regional: gobierno regional; Red Vial Provincial: municipalidad provincial; Red Vial Urbana y caminos rurales no incluidos en SINAC: municipalidad distrital, conforme al D.S. 015-2024-MTC",
+        "Verificar posibles convenios de delegación, concesiones o administración específica del tramo antes de recomendar",
+        "Si no existe una coincidencia única o el servicio no permite consultar atributos del tramo, abstenerse"
       ],
-      "fundamento": "La competencia depende de la jerarquía y administración de la vía.",
-      "fuente": "https://cdn.www.gob.pe/uploads/document/file/9972022/8133550-ley-organica-de-municipalidades-ley-n-27972.pdf"
+      "fundamento": "D.S. N.° 015-2024-MTC, Reglamento de Jerarquización Vial, artículo 6.3, y modificación del artículo 4.2 del Reglamento Nacional de Gestión de Infraestructura Vial.",
+      "fuente": "https://busquedas.elperuano.pe/dispositivo/NL/2325194-1",
+      "fuente_secundaria": "https://www.geoidep.gob.pe/catalogo-nacional-de-servicios-web/servicio-de-visualizacion-wms"
     },
     {
       "categoria": "Tránsito y transporte",
