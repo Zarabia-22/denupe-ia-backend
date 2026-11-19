@@ -8,7 +8,7 @@ from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from .predictor import cargar_modelo, sugerir_categoria
-from .entidades import sugerir_entidad, cargar_directorio, listar_entidades_disponibles
+from .entidades import sugerir_entidad, cargar_directorio, listar_entidades_disponibles, resolver_distrito_por_punto, catalogo_distrital_por_categoria
 from .schemas import DenunciaEntrada, SugerenciaSalida, EntidadEntrada, EntidadSalida, EntidadesDisponiblesSalida
 
 
@@ -67,6 +67,45 @@ def readiness():
 )
 def predecir(denuncia: DenunciaEntrada) -> SugerenciaSalida:
     return sugerir_categoria(denuncia.titulo, denuncia.descripcion)
+
+
+
+@app.get("/api/territorio/catalogo-distrital", tags=["Catálogo territorial"])
+def catalogo_territorial(
+    departamento: str | None = Query(default=None, min_length=2, max_length=80),
+    provincia: str | None = Query(default=None, min_length=2, max_length=80),
+    distrito: str | None = Query(default=None, min_length=2, max_length=80),
+    latitud: float | None = Query(default=None, ge=-90, le=90),
+    longitud: float | None = Query(default=None, ge=-180, le=180),
+):
+    """Devuelve las ocho rutas de competencia; GPS prevalece sobre el distrito del cliente."""
+    if (latitud is None) != (longitud is None):
+        raise HTTPException(status_code=422, detail="latitud y longitud deben enviarse juntas")
+    if latitud is not None:
+        try:
+            territorio = resolver_distrito_por_punto(latitud, longitud)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    elif departamento and provincia and distrito:
+        territorio = {"departamento": departamento, "provincia": provincia, "distrito": distrito}
+    else:
+        raise HTTPException(status_code=422, detail="Envía latitud y longitud GPS, o departamento, provincia y distrito.")
+    try:
+        return catalogo_distrital_por_categoria(territorio["departamento"], territorio["provincia"], territorio["distrito"])
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/api/territorio/resolver-distrito", tags=["Catálogo territorial"])
+def resolver_territorio(
+    latitud: float = Query(ge=-90, le=90),
+    longitud: float = Query(ge=-180, le=180),
+):
+    """Resuelve el distrito administrativo exacto de un punto GPS."""
+    try:
+        return resolver_distrito_por_punto(latitud, longitud)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.post(

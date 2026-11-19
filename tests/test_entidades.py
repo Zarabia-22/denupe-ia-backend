@@ -681,3 +681,41 @@ def test_fallback_de_revision_es_explicito_y_no_se_presenta_como_entidad_externa
     ))
     assert salida.entidad.tipo == "revision_competencia"
     assert "no una entidad pública externa" in salida.motivo
+
+
+def test_matriz_distrital_preconfigura_las_ocho_categorias():
+    from app.entidades import catalogo_distrital_por_categoria
+
+    matriz = catalogo_distrital_por_categoria("Lima", "Lima", "Miraflores")
+    assert matriz["total_categorias"] == 8
+    assert {item["categoria"] for item in matriz["categorias"]} == {
+        "Alumbrado público", "Seguridad ciudadana", "Limpieza y residuos",
+        "Agua y saneamiento", "Tránsito y transporte", "Parques y áreas verdes",
+        "Vialidad e infraestructura", "Otros",
+    }
+    limpieza = next(x for x in matriz["categorias"] if x["categoria"] == "Limpieza y residuos")
+    assert limpieza["entidades"][0]["id"] == "mun-150122"
+    seguridad = next(x for x in matriz["categorias"] if x["categoria"] == "Seguridad ciudadana")
+    assert seguridad["requiere_gps"] is True
+
+
+def test_resolver_distrito_por_gps_usa_ubigeo_y_catalogo(monkeypatch):
+    from app import entidades
+
+    monkeypatch.setattr(entidades, "_arcgis_query_distritos", lambda params: [{
+        "UBIGEO": "150122", "NOMBDEP": "LIMA", "NOMBPROV": "LIMA", "NOMBDIST": "MIRAFLORES",
+    }])
+    territorio = entidades.resolver_distrito_por_punto(-12.12, -77.03)
+    assert territorio["ubigeo"] == "150122"
+    assert territorio["distrito"] == "Miraflores"
+
+
+def test_resolver_distrito_por_gps_se_abstiene_si_hay_dos_poligonos(monkeypatch):
+    import pytest
+    from app import entidades
+
+    monkeypatch.setattr(entidades, "_arcgis_query_distritos", lambda params: [
+        {"UBIGEO": "150122"}, {"UBIGEO": "150140"},
+    ])
+    with pytest.raises(RuntimeError, match="único polígono"):
+        entidades.resolver_distrito_por_punto(-12.12, -77.03)

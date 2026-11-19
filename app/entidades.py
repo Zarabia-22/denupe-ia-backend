@@ -25,6 +25,91 @@ OSINERGMIN_MAPSERVER = os.getenv(
 )
 OSINERGMIN_TIMEOUT = float(os.getenv("OSINERGMIN_TIMEOUT_SECONDS", "5"))
 
+DISTRITOS_MAPSERVER = os.getenv(
+    "DISTRITOS_MAPSERVER_URL",
+    "https://ws.mineco.gob.pe/server/rest/services/cartografia_base_limites/MapServer",
+)
+DISTRITOS_TIMEOUT = float(os.getenv("DISTRITOS_TIMEOUT_SECONDS", "5"))
+
+
+def _arcgis_query_distritos(params: dict) -> list[dict]:
+    query = {
+        "f": "json",
+        "outFields": "UBIGEO,NOMBDEP,NOMBPROV,NOMBDIST",
+        "returnGeometry": "false",
+        "resultRecordCount": 5,
+        **params,
+    }
+    url = f"{DISTRITOS_MAPSERVER}/3/query?{urlencode(query)}"
+    return _consultar_arcgis(url, DISTRITOS_TIMEOUT, "límites distritales")
+
+
+def resolver_distrito_por_punto(latitud: float, longitud: float) -> dict:
+    """Resuelve el distrito mediante intersección con el polígono y valida UBIGEO."""
+    geometry = json.dumps({"x": longitud, "y": latitud, "spatialReference": {"wkid": 4326}})
+    features = _arcgis_query_distritos({
+        "geometry": geometry,
+        "geometryType": "esriGeometryPoint",
+        "inSR": 4326,
+        "spatialRel": "esriSpatialRelIntersects",
+        "outFields": "UBIGEO,NOMBDEP,NOMBPROV,NOMBDIST",
+        "returnGeometry": "false",
+    })
+    by_ubigeo = _unicos_por_atributo(features, "UBIGEO")
+    if len(by_ubigeo) != 1:
+        raise RuntimeError("La coordenada no pertenece a un único polígono distrital identificable.")
+    ubigeo = str(by_ubigeo[0].get("UBIGEO") or "").strip()
+    if len(ubigeo) != 6 or not ubigeo.isdigit():
+        raise RuntimeError("La capa distrital no devolvió un código UBIGEO válido.")
+    coincidencias = [
+        item for item in cargar_directorio()
+        if item.get("codigo_ubigeo") == ubigeo
+        and item.get("tipo") in {"municipalidad_distrital", "municipalidad_provincial"}
+        and item.get("verificado_nombre") is True
+    ]
+    if len(coincidencias) != 1:
+        raise RuntimeError("El distrito detectado no está dentro de la cobertura territorial configurada de DenuPe.")
+    item = coincidencias[0]
+    return {
+        "ubigeo": ubigeo,
+        "departamento": item["departamento"],
+        "provincia": item["provincia"],
+        "distrito": item["distrito"],
+        "fuente_geografica": "Servicio cartográfico cartografia_base_limites, capa 3",
+    }
+
+
+def catalogo_distrital_por_categoria(departamento: str, provincia: str, distrito: str) -> dict:
+    """Matriz de ocho categorías y su ruta competente para un distrito cubierto."""
+    dep, prov, dis = map(normalizar, (departamento, provincia, distrito))
+    municipios = [
+        item for item in cargar_directorio()
+        if item.get("tipo") in {"municipalidad_distrital", "municipalidad_provincial"}
+        and item.get("verificado_nombre") is True
+        and normalizar(item.get("departamento", "")) == dep
+        and normalizar(item.get("provincia", "")) == prov
+        and normalizar(item.get("distrito", "")) == dis
+    ]
+    if len(municipios) != 1:
+        raise ValueError("El distrito no está registrado de forma única en la cobertura actual.")
+    muni = municipios[0]
+    ambito = {"departamento": muni["departamento"], "provincia": muni["provincia"], "distrito": muni["distrito"]}
+    municipalidad = {"id": muni["id"], "nombre": muni["nombre"], "tipo": muni["tipo"], "ambito": ambito}
+    revision = {"id": "revision-competencia", "nombre": "Revisión de competencia (DenuPe)", "tipo": "revision_competencia", "ambito": ambito}
+    lima_callao = (dep, prov) in {("lima", "lima"), ("callao", "callao")}
+    sedapal = {"id": "sedapal-lima-callao", "nombre": "Servicio de Agua Potable y Alcantarillado de Lima (SEDAPAL)", "tipo": "empresa_saneamiento", "ambito": ambito}
+    categorias = [
+        {"categoria": "Alumbrado público", "ruta": "concesion_electrica_por_poligono", "requiere_gps": True, "entidades": [], "respaldo": revision, "estado": "resolucion_geografica", "nota": "El punto debe intersectar exactamente un polígono oficial de concesión de OSINERGMIN."},
+        {"categoria": "Seguridad ciudadana", "ruta": "comisaria_pnp_por_jurisdiccion", "requiere_gps": True, "entidades": [], "respaldo": revision, "estado": "resolucion_geografica", "nota": "El punto debe resolver una única jurisdicción PNP y su código debe existir en la capa operativa."},
+        {"categoria": "Limpieza y residuos", "ruta": "municipalidad_distrital", "requiere_gps": False, "entidades": [municipalidad], "respaldo": revision, "estado": "competencia_local_verificada"},
+        {"categoria": "Agua y saneamiento", "ruta": "empresa_saneamiento", "requiere_gps": False, "entidades": [sedapal] if lima_callao else [], "respaldo": revision, "estado": "ambito_territorial_documentado" if lima_callao else "revision_requerida", "nota": "Confirmar cobertura efectiva y conexión del predio a SEDAPAL." if lima_callao else "No hay una empresa de saneamiento configurada para este ámbito."},
+        {"categoria": "Tránsito y transporte", "ruta": "clasificacion_por_tipo_de_incidente", "requiere_gps": True, "entidades": [], "respaldo": revision, "estado": "revision_requerida", "nota": "Distinguir transporte público urbano (ATU), tránsito local, semaforización y vías de otra jerarquía."},
+        {"categoria": "Parques y áreas verdes", "ruta": "municipalidad_distrital", "requiere_gps": False, "entidades": [municipalidad], "respaldo": revision, "estado": "competencia_local_condicionada", "nota": "Confirmar que el parque o jardín sea público y de administración local."},
+        {"categoria": "Vialidad e infraestructura", "ruta": "titularidad_del_tramo_vial", "requiere_gps": True, "entidades": [], "respaldo": revision, "estado": "revision_requerida", "nota": "Identificar jerarquía y administración del tramo; no asignar por distrito solamente."},
+        {"categoria": "Otros", "ruta": "clasificacion_humana", "requiere_gps": False, "entidades": [], "respaldo": revision, "estado": "revision_requerida"},
+    ]
+    return {"ubigeo": muni.get("codigo_ubigeo"), "departamento": muni["departamento"], "provincia": muni["provincia"], "distrito": muni["distrito"], "categorias": categorias, "total_categorias": len(categorias)}
+
 
 def normalizar(valor: str) -> str:
     valor = unicodedata.normalize("NFKD", valor.casefold())
