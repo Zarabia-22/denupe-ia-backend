@@ -14,3 +14,31 @@ class SugerenciaSalida(BaseModel):
     confianza_modelo: float | None = Field(default=None, ge=0, le=1)
     cobertura_vocabulario: float = Field(ge=0, le=1)
     motivo: str | None = None
+
+
+class EntidadEntrada(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    categoria: str = Field(min_length=2, max_length=80)
+    departamento: str = Field(min_length=2, max_length=80)
+    provincia: str = Field(min_length=2, max_length=80)
+    distrito: str = Field(min_length=2, max_length=80)
+    titulo: str = Field(min_length=5, max_length=100)
+    descripcion: str = Field(min_length=10, max_length=500)
+    latitud: float | None = Field(default=None, ge=-90, le=90)
+    longitud: float | None = Field(default=None, ge=-180, le=180)
+
+
+class EntidadPublica(BaseModel):
+    id: str
+    nombre: str
+    tipo: str
+    direccion: str | None = None
+    telefono: str | None = None
+    sitio_web: str | None = None
+    ambito: dict[str, str]
+
+
+class EntidadSalida(BaseModel):
+    sugerida: bool
+    entidad: EntidadPublica | None = None
+    motivo: str

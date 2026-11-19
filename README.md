@@ -97,3 +97,110 @@ El contenedor solo carga artefactos de **ocho clases v3**, y fallará explícita
 ## Seguridad y limitaciones
 
 Este es un prototipo académico. El endpoint no tiene autenticación ni limitación de tasa; hay que establecer controles de acceso y antiabuso antes de exposición pública. Las cargas incluyen texto redactado por ciudadanos: no se registra deliberadamente su contenido ni debe usarse información personal en pruebas públicas. Deserializar `joblib` puede ejecutar código, por lo que solo se deben cargar artefactos del repositorio de confianza. Usar HTTPS y verificar los mapeos de categorías de la base de datos.
+
+
+## HU-IA02 — Recomendación de entidad pública
+
+Se incorpora el endpoint independiente `POST /api/ia/sugerir-entidad`. Recibe la categoría, departamento, provincia, distrito, título y descripción de la denuncia, además de latitud y longitud cuando la competencia requiere resolver una jurisdicción geográfica. Las municipalidades se consultan en `data/entidades_publicas.json`; las comisarías PNP y las empresas concesionarias eléctricas se resuelven mediante consultas espaciales a los servicios oficiales de GEOMININTER y OSINERGMIN, respectivamente. Si no existe evidencia territorial y temática suficiente, el servicio se abstiene.
+
+Ejemplo de solicitud:
+
+```json
+{
+  "categoria": "Limpieza y residuos",
+  "departamento": "Lima",
+  "provincia": "Lima",
+  "distrito": "Miraflores",
+  "titulo": "Basura acumulada en la avenida",
+  "descripcion": "Hay bolsas de residuos y desperdicios sin recoger en la vía pública."
+}
+```
+
+La respuesta contiene `sugerida`, `entidad` (identificador, nombre, tipo, datos de contacto disponibles y ámbito territorial) y `motivo`. Si no hay coincidencia o existen candidatos equivalentes, devuelve `sugerida: false` y no asigna una institución. La selección y derivación final deben seguir bajo control del ciudadano o del personal responsable.
+
+**Estado del directorio:** `data/entidades_publicas.json` contiene 50 registros municipales de Lima Metropolitana y Callao. Los registros tienen nombre y ámbito territorial contrastados con el directorio del INEI 2026. La matriz habilita únicamente Limpieza y residuos y Parques y áreas verdes; el campo `verificado_competencias` no debe interpretarse como autorización para las demás categorías. Las 46 referencias PNP históricas están separadas y deshabilitadas. La lógica municipal es una coincidencia territorial y temática basada en catálogo; no es un nuevo modelo de aprendizaje automático ni una validación legal individual de cada incidente.
+
+Pruebas específicas: `tests/test_entidades.py` cubre directorio vacío, coincidencia territorial y temática, rechazo de otro distrito, categorías no habilitadas, exclusión de referencias PNP históricas, exigencia de GPS, resolución por polígono, comprobación del código en la capa de comisarías y abstención ante errores o resultados ambiguos.
+
+
+### Cobertura territorial inicial: Lima Metropolitana y Callao
+
+El catálogo `data/entidades_publicas.json` contiene 50 registros territoriales municipales: los 43 distritos de la provincia de Lima y los 7 distritos de la Provincia Constitucional del Callao. Para Lima (Cercado) se registra la Municipalidad Metropolitana de Lima y para Callao la Municipalidad Provincial del Callao; los demás registros corresponden a sus municipalidades distritales.
+
+La relación territorial se basa en el Directorio Nacional de Gobiernos Regionales, Municipalidades Provinciales y Distritales 2026 del INEI: https://www.gob.pe/institucion/inei/informes-publicaciones/8058591-national-directory-of-regional-provincial-municipalities-district-governments-and-of-populated-centers-2026. La PCM identifica a la provincia de Lima como conformada por 43 distritos: https://www.gob.pe/institucion/pcm/campanas/4355-limametropolitana-informacion-territorial. El Callao se trata como provincia constitucional separada.
+
+**Límite importante:** estos registros cubren municipalidades, no el directorio completo de entidades sectoriales. Las comisarías no se infieren a partir del distrito ni de las 46 referencias históricas. Para seguridad, la versión actual resuelve la jurisdicción mediante el polígono oficial de GEOMININTER y comprueba el código en la capa de comisarías. Los 50 registros municipales tienen `verificado_competencias: true` en el catálogo, pero la matriz solo habilita dos categorías: Limpieza y residuos y Parques y áreas verdes. No se deben usar las sugerencias como derivación automática sin revisión humana.
+
+
+### Referencias PNP para Lima y Callao (no habilitadas para derivación)
+
+Se añade `data/comisarias_pnp_referencia.json` con 46 referencias de comisarías que aparecen en el Anexo 01 del DU 085-2020. Se conservan como datos históricos de apoyo, no como un padrón vigente ni como una relación exhaustiva de todas las comisarías actuales. Cada registro lleva `habilitada_recomendacion: false` y la fecha/fuente correspondiente.
+
+La PNP publicó una línea base de 1,332 comisarías básicas operativas al 15/01/2026 (https://www.gob.pe/institucion/pnp/informes-publicaciones/7531378-linea-base-de-informacion-georreferenciada-de-comisarias-basicas-relacion-de-comisarias-operativas-a-nivel-nacional-2026) y un documento de comisarías con demarcación territorial identificada en mapa (https://www.gob.pe/institucion/pnp/informes-publicaciones/7173744-comisarias-de-la-policia-nacional-del-peru-con-demarcacion-territorial). La implementación usa el servicio geográfico oficial de GEOMININTER para la intersección espacial y confirmación del código; las 46 referencias del DU 085-2020 siguen deshabilitadas. La respuesta no asigna una comisaría usando únicamente el distrito administrativo.
+
+
+### Matriz de competencias y límites de derivación
+
+Se incorpora `data/matriz_competencias.json`. Se habilitan recomendaciones para **Limpieza y residuos** y **Parques y áreas verdes** a la municipalidad distrital correspondiente, bajo las condiciones de la matriz; **Seguridad ciudadana / delitos** mediante jurisdicción PNP geográfica; **Alumbrado público** mediante concesión eléctrica OSINERGMIN; y la subcategoría explícita **Transporte público urbano de pasajeros** hacia ATU, únicamente para las provincias de Lima y Callao. La categoría genérica `Tránsito y transporte` no se deriva automáticamente.
+
+Se mantienen bloqueadas las recomendaciones automáticas para:
+- **Alumbrado público:** se resuelve mediante GPS y consulta espacial al polígono oficial de concesión eléctrica de OSINERGMIN (capa 33). Solo se recomienda cuando la coordenada intersecta exactamente un polígono y su código `CODEMP` está reconocido.
+- **Transporte público urbano de pasajeros:** la subcategoría explícita se recomienda a ATU únicamente en las provincias de Lima y Callao, según la Ley 30900. La categoría genérica `Tránsito y transporte` continúa en abstención porque mezcla transporte público, señalización, semáforos y tránsito local.
+- **Vialidad e infraestructura:** el D.S. N.° 015-2024-MTC asigna la Red Vial Nacional al MTC, la Red Vial Departamental/Regional a los gobiernos regionales y la Red Vial Provincial/Urbana a municipalidades provinciales/distritales. No se recomienda todavía una entidad porque falta integrar y validar una capa consultable que identifique el tramo exacto y posibles delegaciones o concesiones.
+- **Seguridad / PNP:** se consulta la capa 2 `Jurisdicciones` (polígonos) para resolver espacialmente el punto de la denuncia y la capa 0 `Comisarias` (puntos) para comprobar la presencia del código devuelto. Las 46 referencias históricas del DU 085-2020 no se habilitan para asignación. La comprobación geográfica no certifica por sí sola la situación administrativa vigente de la dependencia; se mantiene revisión humana.
+
+Fuentes normativas y de datos:
+- Ley Orgánica de Municipalidades N.° 27972: https://cdn.www.gob.pe/uploads/document/file/2685861/Ley%20Organica%20de%20Municipalidades.pdf
+- Capa geográfica de comisarías MININTER: https://geomininter.mininter.gob.pe/arcgis/rest/services/pnp/policia_nacional_peru/MapServer/0
+- Padrón de comisarías operativas PNP 2026: https://www.gob.pe/institucion/pnp/informes-publicaciones/7531378-linea-base-de-informacion-georreferenciada-de-comisarias-basicas-relacion-de-comisarias-operativas-a-nivel-nacional-2026
+- Comisarías PNP con demarcación territorial: https://www.gob.pe/institucion/pnp/informes-publicaciones/7173744-comisarias-de-la-policia-nacional-del-peru-con-demarcacion-territorial
+
+La recomendación es una ayuda informativa: no ejecuta una derivación administrativa ni sustituye la revisión de la entidad competente. Cuando una categoría no esté habilitada o no haya registro territorial verificable, el endpoint responde `sugerida: false`.
+
+
+## Validación territorial y despliegue HU-IA02 (actualización)
+
+### Policía Nacional: resolución por punto geográfico
+
+El endpoint `POST /api/ia/sugerir-entidad` admite ahora `latitud` y `longitud` opcionales. Para categorías de seguridad/delitos exige ambas coordenadas y consulta el servicio oficial GEOMININTER:
+- Capa 2 `Jurisdicciones`: geometría poligonal; realiza una consulta espacial `esriSpatialRelIntersects` con el punto de la denuncia.
+- Capa 0 `Comisarias`: comprueba que el código `cod_cpnp` devuelto por el polígono exista también en la capa operativa publicada.
+- Si faltan coordenadas, el servicio falla, la geometría no identifica exactamente una jurisdicción o el código no está en la capa operativa, devuelve `sugerida: false`.
+
+Servicio y esquema de capas: https://geomininter.mininter.gob.pe/arcgis/rest/services/pnp/policia_nacional_peru/MapServer/layers. La capa de jurisdicciones publica geometría poligonal y campos `cod_cpnp`, `comisaria`, `departamento`, `provincia`, `distrito`; la capa de comisarías publica puntos y los mismos códigos de identificación. La línea base PNP 2026 declara 1,332 comisarías básicas operativas a nivel nacional (corte 15/01/2026): https://www.gob.pe/institucion/pnp/informes-publicaciones/7531378-linea-base-de-informacion-georreferenciada-de-comisarias-basicas-relacion-de-comisarias-operativas-a-nivel-nacional-2026. La verificación en el MapServer es una comprobación de presencia en la capa geográfica, no certifica por sí sola el estatus administrativo actual de cada dependencia; mantener revisión humana para casos sensibles.
+
+Ejemplo de solicitud para seguridad:
+
+```json
+{
+  "categoria": "Seguridad ciudadana",
+  "departamento": "Lima",
+  "provincia": "Lima",
+  "distrito": "Miraflores",
+  "titulo": "Robo en la vía pública",
+  "descripcion": "Reporto un robo cerca del parque.",
+  "latitud": -12.12,
+  "longitud": -77.03
+}
+```
+
+### Otras competencias
+
+- **Limpieza y residuos:** municipalidad distrital, con base en el artículo 80 de la Ley 27972, para limpieza pública local: https://cdn.www.gob.pe/uploads/document/file/9972022/8133550-ley-organica-de-municipalidades-ley-n-27972.pdf.
+- **Parques y áreas verdes:** municipalidad distrital solo cuando se trate de parque/jardín público de administración local; la gestión concreta del espacio debe confirmarse.
+- **Transporte público urbano:** la ATU tiene jurisdicción en Lima y Callao para el sistema integrado de transporte terrestre urbano de personas (Ley 30900): https://www.leyes.congreso.gob.pe/documentos/2016_2021/adlp/normas_legales/30900_ley.pdf. La implementación habilita exclusivamente la subcategoría `Transporte público urbano de pasajeros`; no activa la categoría genérica `Tránsito y transporte`.
+- **Alumbrado público:** OSINERGMIN indica que las deficiencias deben denunciarse ante la empresa eléctrica que brinda el servicio. La capa 33 `Área de Concesión` del servicio geográfico oficial publica polígonos y el dominio de códigos de empresa: https://gisem.osinergmin.gob.pe/serverosih/rest/services/Electricidad/ELECTRICIDAD/MapServer/33. Guía de atención: https://www.osinergmin.gob.pe/Paginas/Folletos/folletos/electricidad.html.
+- **Vialidad:** el D.S. N.° 015-2024-MTC establece la distribución de responsabilidades por jerarquía vial (MTC para red nacional, gobiernos regionales para red departamental y gobiernos locales para red provincial/urbana): https://busquedas.elperuano.pe/dispositivo/NL/2325194-1. IDEP registra capas MTC 2025 para redes nacional, departamental y vecinal, pero varias solo ofrecen WMS; antes de automatizar la recomendación se debe confirmar una fuente de consulta de entidades/tramos con atributos y vigencia, además de delegaciones y concesiones: https://www.geoidep.gob.pe/catalogo-nacional-de-servicios-web/servicio-de-visualizacion-wms.
+
+### Configuración y pruebas
+
+- Variable opcional `PNP_MAPSERVER_URL`: permite configurar la URL base del MapServer oficial.
+- Variable opcional `PNP_TIMEOUT_SECONDS`: timeout de consulta (por defecto 5 segundos).
+- La consulta PNP y la consulta de concesiones eléctricas usan la biblioteca estándar de Python, sin agregar dependencias de producción.
+- `OSINERGMIN_MAPSERVER_URL`: permite configurar la URL base del servicio oficial de concesiones eléctricas (opcional).
+- `OSINERGMIN_TIMEOUT_SECONDS`: timeout de consulta OSINERGMIN (por defecto 5 segundos).
+- Pruebas agregadas para exigir GPS, resolver jurisdicción PNP por polígono, confirmar el código en la capa operativa, resolver la concesionaria eléctrica por el polígono de OSINERGMIN, validar ATU en Lima y Callao y abstenerse ante categoría genérica, ámbito territorial incorrecto, ausencia de coordenadas, ambigüedad, códigos desconocidos o errores del servicio.
+
+### Despliegue
+
+El repositorio define `render.yaml` con runtime Docker, `/health` y despliegue por commit. El push a esta rama puede desplegar automáticamente solo si el servicio Render está vinculado a esta rama y tiene auto-deploy habilitado. No se debe afirmar que está desplegado hasta comprobar un deploy exitoso y consultar el endpoint en el servicio correspondiente.
