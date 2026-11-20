@@ -105,6 +105,9 @@ def test_resolutor_rechaza_cero_o_multiples_resultados(monkeypatch):
 
 
 def test_rpc_rechaza_payload_no_lista_o_filas_no_objeto(monkeypatch):
-    monkeypatch.setattr(insforge_catalog, "_rpc", lambda *args: {"unexpected": True})
-    with pytest.raises(insforge_catalog.InsForgeCatalogError):
+    import io
+
+    monkeypatch.setattr(insforge_catalog, "_configuracion", lambda: ("https://example.invalid/", "ik_test"))
+    monkeypatch.setattr(insforge_catalog, "urlopen", lambda request, timeout: io.BytesIO(b'{"unexpected": true}'))
+    with pytest.raises(insforge_catalog.InsForgeCatalogError, match="respuesta inesperada"):
         insforge_catalog.consultar_matriz_distrital("150122")
