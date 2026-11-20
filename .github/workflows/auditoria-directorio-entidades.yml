@@ -1,0 +1,36 @@
+name: Auditoría del directorio de entidades concretas
+
+on:
+  push:
+    branches:
+      - develop
+      - feat/catalogo-entidades-fuentes-oficiales
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - "data/entidades_publicas.json"
+      - "data/fuentes_catalogo_entidades.json"
+      - "scripts/auditoria_directorio_entidades.py"
+      - "tests/test_auditoria_directorio_entidades.py"
+      - ".github/workflows/auditoria-directorio-entidades.yml"
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Instalar pytest
+        run: pip install pytest
+      - name: Ejecutar pruebas de auditoría
+        run: python -m pytest -q tests/test_auditoria_directorio_entidades.py
+      - name: Auditar directorio actual
+        run: python scripts/auditoria_directorio_entidades.py
+      - name: Publicar informe
+        uses: actions/upload-artifact@v4
+        with:
+          name: auditoria-directorio-entidades
+          path: artifacts/auditoria-directorio-entidades.json
