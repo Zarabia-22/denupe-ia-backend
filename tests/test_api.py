@@ -230,3 +230,58 @@ def test_entidades_disponibles_consulta_matriz_tras_resolver_gps(monkeypatch):
         })
     assert response.status_code == 200
     assert response.json()["entidades"][0]["ambito"]["distrito"] == "Miraflores"
+
+
+def test_sugerir_entidad_usa_gps_sin_exigir_territorio_del_cliente(monkeypatch):
+    from app import main
+    from app.schemas import EntidadSalida, EntidadPublica
+
+    territorio_gps = {
+        "ubigeo": "150122", "departamento": "Lima",
+        "provincia": "Lima", "distrito": "Miraflores",
+    }
+    monkeypatch.setattr(main, "resolver_distrito_por_punto", lambda lat, lon: territorio_gps)
+    monkeypatch.setattr(main, "consultar_matriz_distrital", lambda ubigeo: [{"categoria_code": "limpieza"}])
+    monkeypatch.setattr(main, "consultar_resolutor_categoria", lambda ubigeo, codigo: {
+        "requiere_gps": True, "asignar_solo_tras_gps": True, "entidad_nombre": "Municipalidad competente",
+    })
+    recibida = {}
+
+    def sugerir(denuncia):
+        recibida.update(denuncia.model_dump())
+        return EntidadSalida(
+            sugerida=True,
+            entidad=EntidadPublica(
+                id="mun-150122", nombre="Municipalidad Distrital de Miraflores",
+                tipo="municipalidad_distrital",
+                ambito={"departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores"},
+            ),
+            motivo="Entidad verificada por GPS.",
+        )
+
+    monkeypatch.setattr(main, "sugerir_entidad", sugerir)
+    with TestClient(app) as cliente:
+        response = cliente.post("/api/ia/sugerir-entidad", json={
+            "categoria": "Limpieza y residuos",
+            "titulo": "Basura acumulada en la avenida",
+            "descripcion": "Hay residuos acumulados desde hace varios días.",
+            "latitud": -12.12, "longitud": -77.03,
+        })
+
+    assert response.status_code == 200
+    assert response.json()["sugerida"] is True
+    assert recibida["departamento"] == "Lima"
+    assert recibida["provincia"] == "Lima"
+    assert recibida["distrito"] == "Miraflores"
+
+
+def test_sugerir_entidad_sin_gps_se_abstiene_aunque_no_haya_territorio():
+    with TestClient(app) as cliente:
+        response = cliente.post("/api/ia/sugerir-entidad", json={
+            "categoria": "Limpieza y residuos",
+            "titulo": "Basura acumulada en la avenida",
+            "descripcion": "Hay residuos acumulados desde hace varios días.",
+        })
+    assert response.status_code == 200
+    assert response.json()["sugerida"] is False
+    assert response.json()["entidad"] is None
