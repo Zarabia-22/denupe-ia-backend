@@ -1,9 +1,74 @@
-# DenuPe — Backend de clasificación de denuncias (IA v3)
+# DenuPe — Backend de IA y resolución territorial
 
-Microservicio [FastAPI](https://fastapi.tiangolo.com/) para la aplicación móvil [DenuPe](https://github.com/Zarabia-22/denupe).
-Sugiere una categoría a partir del **título y la descripción**. El usuario siempre puede elegir manualmente.
+<p align="center">
+  <strong>Microservicio REST para clasificación de denuncias y apoyo a la identificación territorial de entidades públicas.</strong>
+</p>
 
-## Catálogo de ocho categorías
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white" alt="Python 3.11" />
+  <img src="https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/Modelo-categor%C3%ADas%20v3-6A5ACD" alt="Modelo categorías v3" />
+  <img src="https://img.shields.io/badge/Despliegue-Render-46E3B7?logo=render&logoColor=black" alt="Render" />
+  <img src="https://img.shields.io/badge/Licencia-no%20especificada-lightgrey" alt="Licencia no especificada" />
+</p>
+
+## 1. Descripción
+
+DenuPe Backend es un servicio desarrollado con **Python y FastAPI** que complementa la aplicación móvil [DenuPe](https://github.com/Zarabia-22/denupe). Recomienda una categoría a partir del texto de una denuncia y ayuda a resolver el distrito y la posible entidad receptora usando la ubicación GPS, un catálogo territorial y fuentes geográficas.
+
+El servicio entrega sugerencias explicables y puede abstenerse cuando la evidencia no es suficiente. **No presenta denuncias ni realiza derivaciones administrativas**: la selección manual y la decisión final permanecen bajo control de la persona usuaria o del personal responsable.
+
+## 2. Demo y apoyo visual
+
+- **API desplegada — entorno de pruebas:** [https://denupe-ia-backend-hu-ia02-test.onrender.com](https://denupe-ia-backend-hu-ia02-test.onrender.com)
+- **Swagger UI:** [Explorar y probar los endpoints](https://denupe-ia-backend-hu-ia02-test.onrender.com/docs)
+- **Estado del servicio:** [Health check](https://denupe-ia-backend-hu-ia02-test.onrender.com/health)
+- **Código fuente:** [Zarabia-22/denupe-ia-backend](https://github.com/Zarabia-22/denupe-ia-backend)
+- **Aplicación cliente:** [Zarabia-22/denupe](https://github.com/Zarabia-22/denupe)
+
+El enlace corresponde al servicio de pruebas HU-IA02; no debe interpretarse como una URL de producción ni como garantía de disponibilidad permanente. La documentación Swagger permite enviar solicitudes de ejemplo y revisar los esquemas de entrada y salida. No se incluyen capturas ni GIF porque el backend es una API sin interfaz gráfica propia.
+
+## 3. Tabla de contenidos
+
+- [Descripción](#1-descripción)
+- [Demo y apoyo visual](#2-demo-y-apoyo-visual)
+- [Tabla de contenidos](#3-tabla-de-contenidos)
+- [Características principales](#4-características-principales)
+- [Stack tecnológico](#5-stack-tecnológico)
+- [Prerrequisitos](#6-prerrequisitos)
+- [Instalación y configuración](#7-instalación-y-configuración)
+- [Ejemplos de uso](#8-ejemplos-de-uso)
+- [Roadmap y limitaciones conocidas](#9-roadmap-y-limitaciones-conocidas)
+- [Contribución y licencia](#10-contribución-y-licencia)
+- [Arquitectura y referencia técnica](#11-arquitectura-y-referencia-técnica)
+
+## 4. Características principales
+
+### Clasificación inteligente de denuncias
+- Recibe título y descripción y recomienda una de las ocho categorías de DenuPe.
+- Normaliza el texto y utiliza TF-IDF de palabras y caracteres con un clasificador de regresión logística.
+- Evalúa confianza, margen entre clases y cobertura del vocabulario antes de emitir una sugerencia.
+- Se abstiene si la entrada es ambigua, contiene vocabulario insuficiente o no supera los controles establecidos.
+
+### Resolución territorial y catálogo
+- Resuelve el distrito desde coordenadas GPS mediante intersección con límites geográficos.
+- Obtiene departamento, provincia, distrito y UBIGEO a partir del punto; no confía en los datos territoriales escritos por el cliente como fuente de autoridad.
+- Consulta en InsForge la matriz de ocho categorías por distrito y el resolutor sectorial asociado.
+- Expone el catálogo distrital y las entidades disponibles para una categoría y ubicación.
+
+### Recomendación de entidades
+- Contrasta las reglas territoriales con directorios locales y servicios cartográficos disponibles.
+- Integra verificaciones geográficas para jurisdicciones PNP y concesiones eléctricas, además de reglas sectoriales documentadas.
+- Devuelve una institución concreta solo cuando la evidencia disponible permite identificarla de forma suficiente y única.
+- Cuando no puede confirmarla, devuelve abstención y conserva la selección manual. `revision_competencia` es una bandeja interna de DenuPe, no una institución pública.
+
+### Operación y protección básica
+- Validación estricta de solicitudes mediante Pydantic.
+- Límite de tamaño de cuerpo HTTP, cuota de solicitudes por IP, identificador de solicitud y cabeceras de seguridad.
+- Pruebas automatizadas con pytest y HTTPX.
+- Empaquetado mediante Docker y configuración de despliegue para Render.
+
+### Ocho categorías admitidas
 
 | Código | Categoría |
 |---|---|
@@ -16,283 +81,319 @@ Sugiere una categoría a partir del **título y la descripción**. El usuario si
 | `infraestructura` | Vialidad e infraestructura |
 | `otros` | Otros |
 
-Los nombres coinciden con las categorías del SQL de la aplicación. **Ruido** pertenece a `Otros`, pues no existe como categoría independiente.
+Los códigos deben coincidir con el catálogo usado por la aplicación y la base de datos. La existencia de una categoría en la matriz territorial no significa que exista una entidad concreta verificada para derivar cualquier denuncia de esa categoría.
 
-## Datos y tratamiento de texto
+## 5. Stack tecnológico
 
-El entrenamiento usa **2.400 denuncias simuladas**, 300 por cada una de las 8 categorías:
+| Tecnología | Uso |
+|---|---|
+| Python 3.11 | Lenguaje y entorno de ejecución. |
+| FastAPI | API REST y documentación OpenAPI/Swagger. |
+| Uvicorn | Servidor ASGI. |
+| Pydantic | Validación de los contratos JSON. |
+| scikit-learn | TF-IDF y clasificación multiclase. |
+| NumPy / SciPy | Operaciones numéricas y soporte científico. |
+| Joblib | Carga de los artefactos del modelo. |
+| InsForge / PostgreSQL | Catálogo territorial y funciones RPC. |
+| Servicios geográficos oficiales | Resolución espacial de límites y jurisdicciones. |
+| pytest / HTTPX | Pruebas unitarias y de integración. |
+| Docker | Construcción de la imagen del servicio. |
+| Render | Alojamiento del servicio web. |
+| GitHub Actions | Automatización de validaciones y entrenamiento. |
 
-| Archivo | Registros | Casos base |
-|---|---:|---:|
-| `data/denuncias_simuladas_800.csv` | 800 | 160 |
-| `data/denuncias_simuladas_adicionales_1600.csv` | 1.600 | 320 |
-| **Total** | **2.400** | **480** |
+Las versiones instaladas se encuentran fijadas en `requirements.txt` y `requirements-dev.txt`.
 
-Cada uno de los 480 casos tiene cinco variantes de redacción, por lo que el modelo practica distintas expresiones de situaciones semejantes. Son **datos inventados**, no denuncias ciudadanas auténticas.
+## 6. Prerrequisitos
 
-El procesamiento incluye normalización de Unicode, tildes, mayúsculas, signos, números, correos, enlaces y espacios; TF-IDF de palabras (unigramas y bigramas) más fragmentos de caracteres (3 a 5); y clasificación multiclase sin reglas manuales de clasificación. Los cinco ejemplos de un mismo caso se mantienen siempre en la misma partición.
+Para ejecutar el proyecto localmente se necesita:
 
-La división estratificada por categoría es de 1.680 ejemplos de entrenamiento, 360 de validación y 360 de prueba, con semilla reproducible. La selección compara **cinco configuraciones de modelos** mediante validación, sin utilizar el conjunto de prueba para elegir el modelo. El sistema también dispone de un umbral de abstención: si la confianza, la cobertura de vocabulario o el margen entre categorías es insuficiente, mantiene la elección manual.
+- Python **3.11**.
+- Git.
+- pip y soporte para entornos virtuales de Python.
+- Acceso a un proyecto InsForge para probar las funciones territoriales.
+- Credencial administrativa de InsForge disponible como secreto del backend, no en la aplicación Flutter.
+- Conexión a internet para consultar los servicios geográficos externos.
 
-### Métricas verificadas sobre datos simulados
+Para ejecutar el contenedor también se necesita Docker. No es necesario configurar InsForge para ejecutar únicamente el endpoint de clasificación de categorías; sí es necesario para los endpoints que consultan la matriz territorial.
 
-- **96,67 % accuracy** y **96,66 % F1 macro** sobre las 360 denuncias del conjunto de prueba (348 aciertos).
-- Modelo elegido con validación: **LogisticRegression(C=15)**, sobre TF-IDF de palabras y caracteres.
-- De 360 solicitudes evaluadas, el filtro de recomendación **sugiere 343** (95,28 % de cobertura) y acierta en **340** de las 343 emitidas (99,13 % de precisión selectiva).
-- `models/metricas.json` contiene los resultados completos, la matriz de confusión y las métricas por clase.
-- `tests/test_training.py` incluye una comprobación que exige al menos 90 % de exactitud y de F1 macro **en este benchmark simulado**.
+## 7. Instalación y configuración
 
-**Interpretación:** la métrica corresponde a un banco artificial de prueba con formatos de redacción compartidos; aunque los casos base no cruzan las divisiones, puede ser más sencillo que denuncias reales. No demuestra una precisión real de 96,67 %, ni garantiza una exactitud mínima en producción. Para validar con rigor en condiciones reales se necesitan denuncias reales anonimizadas, etiquetadas, de fuentes y periodos independientes, evaluación por distrito y categoría, y revisión de ambigüedades, negaciones y casos fuera de dominio. Las probabilidades de `predict_proba` no están calibradas.
-
-### Reproducir el entrenamiento
-
-Requiere Python 3.11:
+### 7.1 Clonar el repositorio
 
 ```bash
-python -m venv .venv
-# Activar .venv según el sistema operativo
-pip install -r requirements-dev.txt
-python -m training.train
-python -m pytest -q
+git clone https://github.com/Zarabia-22/denupe-ia-backend.git
+cd denupe-ia-backend
 ```
 
-El entrenamiento reemplaza `models/modelo_categorias.joblib.gz`, `models/vectorizador_tfidf.joblib.gz` y `models/metricas.json`.
-El flujo de GitHub Actions **Entrenar modelo de ocho categorias** lo ejecuta de forma reproducible al cambiar los datos o el entrenamiento, verifica las pruebas y versiona los artefactos generados en la rama de desarrollo.
+### 7.2 Crear y activar el entorno virtual
 
-**Importante:** la exactitud y F1 registradas en `models/metricas.json` corresponden a **casos sintéticos**. Al compartir situaciones base, las variantes siguen siendo similares aunque se evite su fuga entre entrenamiento y prueba; por ello **no representan el rendimiento en denuncias reales**. Antes de producción se requieren casos reales etiquetados, una evaluación externa, revisión de sesgos y recalibración del umbral. La probabilidad de la regresión logística no debe interpretarse como certeza calibrada.
+**Windows PowerShell**
 
-## API
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+**Linux / macOS**
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+```
+
+### 7.3 Instalar dependencias
+
+Para desarrollo y pruebas:
+
+```bash
+python -m pip install --upgrade pip
+pip install -r requirements-dev.txt
+```
+
+Para instalar solo las dependencias de ejecución:
+
+```bash
+pip install -r requirements.txt
+```
+
+### 7.4 Configurar variables de entorno
+
+Crea un archivo `.env` en la raíz del proyecto para tu entorno local. No lo subas al repositorio. Exporta las variables en la terminal o utiliza el mecanismo de configuración local que tengas habilitado; el servicio lee las variables del entorno del proceso.
+
+| Variable | Descripción |
+|---|---|
+| `INSFORGE_URL` | URL base del proyecto InsForge. |
+| `INSFORGE_API_KEY` | Clave administrativa usada exclusivamente desde el servidor. |
+| `INSFORGE_TIMEOUT_SECONDS` | Tiempo máximo de espera para RPC de InsForge; valor predeterminado: 8 segundos. |
+| `DISTRITOS_MAPSERVER_URL` | URL del servicio cartográfico de límites distritales, si se desea sobrescribir el valor predeterminado. |
+| `DISTRITOS_TIMEOUT_SECONDS` | Tiempo máximo de espera de la consulta geográfica distrital. |
+| `PNP_MAPSERVER_URL` | URL base del servicio geográfico PNP, si se configura. |
+| `PNP_TIMEOUT_SECONDS` | Tiempo máximo de espera de la consulta PNP. |
+| `OSINERGMIN_MAPSERVER_URL` | URL del servicio geográfico de concesiones eléctricas, si se configura. |
+| `OSINERGMIN_TIMEOUT_SECONDS` | Tiempo máximo de espera de la consulta OSINERGMIN. |
+| `MAX_REQUEST_BODY_BYTES` | Tamaño máximo del cuerpo HTTP; predeterminado: 16.384 bytes. |
+| `RATE_LIMIT_PER_MINUTE` | Máximo de solicitudes por IP y minuto; predeterminado: 120 por proceso. |
+| `CORS_ORIGINS` | Orígenes web permitidos, separados por comas. |
+
+Configura únicamente las variables necesarias para los servicios que vayas a utilizar. Los valores predeterminados de las URLs geográficas están definidos por el código. **Nunca publiques `INSFORGE_API_KEY`, no la incluyas en Flutter y no la escribas en capturas, logs o ejemplos.**
+
+### 7.5 Ejecutar el servidor
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-- `GET /health`: estado de salud y versión del clasificador.
-- `GET /docs`: documentación interactiva Swagger.
-- `POST /api/ia/sugerir-categoria`: recibe `titulo` (5-100 caracteres) y `descripcion` (10-500 caracteres).
-- La respuesta mantiene el contrato de Flutter: `sugerida`, `categoria`, `confianza_modelo`, `cobertura_vocabulario` y `motivo`.
+La API estará disponible normalmente en `http://127.0.0.1:8000`.
 
-Ejemplo:
+- Swagger UI: http://127.0.0.1:8000/docs
+- OpenAPI JSON: http://127.0.0.1:8000/openapi.json
+- Salud: http://127.0.0.1:8000/health
 
-```json
-{"titulo": "Baches en la pista principal", "descripcion": "El pavimento está dañado y hay varios huecos en la calzada."}
+### 7.6 Ejecutar las pruebas
+
+```bash
+python -m pytest -q
 ```
 
-```json
-{"sugerida": true, "categoria": "Vialidad e infraestructura", "confianza_modelo": 0.86, "cobertura_vocabulario": 0.78, "motivo": null}
+## 8. Ejemplos de uso
+
+### 8.1 Comprobar el servicio
+
+```bash
+curl http://127.0.0.1:8000/health
 ```
 
-**Los valores numéricos del ejemplo son ilustrativos.** También puede devolver `sugerida: false`, `categoria: null` y un motivo. Nunca asigna la categoría al ciudadano automáticamente.
+### 8.2 Recomendar una categoría
 
-## Integración Flutter
+```bash
+curl -X POST "http://127.0.0.1:8000/api/ia/sugerir-categoria" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "titulo": "Baches en la pista principal",
+    "descripcion": "El pavimento está dañado y hay varios huecos en la calzada."
+  }'
+```
 
-El cliente está en `lib/services/ai_category_service.dart` del repositorio principal, con el botón en `lib/screens/new_complaint_screen.dart`.
-La URL se configura mediante `DENUPE_IA_URL` y la app relaciona el nombre devuelto con el catálogo real del backend de datos. Flutter cuenta con selección manual ante rechazo o falta de conexión.
-
-## Despliegue
-
-Se proporciona `Dockerfile` y `render.yaml` para Render (ruta de health-check `/health`). Una configuración no garantiza que un despliegue esté activo.
-El contenedor solo carga artefactos de **ocho clases v3**, y fallará explícitamente si detecta artefactos antiguos. El servicio no accede a la base de datos ni presenta denuncias: solo sugiere categorías.
-
-## Seguridad y limitaciones
-
-Este es un prototipo académico. El endpoint no tiene autenticación ni limitación de tasa; hay que establecer controles de acceso y antiabuso antes de exposición pública. Las cargas incluyen texto redactado por ciudadanos: no se registra deliberadamente su contenido ni debe usarse información personal en pruebas públicas. Deserializar `joblib` puede ejecutar código, por lo que solo se deben cargar artefactos del repositorio de confianza. Usar HTTPS y verificar los mapeos de categorías de la base de datos.
-
-
-## HU-IA02 — Recomendación de entidad pública
-
-Se incorpora el endpoint independiente `POST /api/ia/sugerir-entidad`. Recibe la categoría, departamento, provincia, distrito, título y descripción de la denuncia, además de latitud y longitud cuando la competencia requiere resolver una jurisdicción geográfica. Las municipalidades se consultan en `data/entidades_publicas.json`; las comisarías PNP y las empresas concesionarias eléctricas se resuelven mediante consultas espaciales a los servicios oficiales de GEOMININTER y OSINERGMIN, respectivamente. Si no existe evidencia territorial y temática suficiente, el servicio se abstiene.
-
-Ejemplo de solicitud:
+Respuesta ilustrativa:
 
 ```json
 {
-  "categoria": "Limpieza y residuos",
-  "departamento": "Lima",
-  "provincia": "Lima",
-  "distrito": "Miraflores",
-  "titulo": "Basura acumulada en la avenida",
-  "descripcion": "Hay bolsas de residuos y desperdicios sin recoger en la vía pública."
+  "sugerida": true,
+  "categoria": "Vialidad e infraestructura",
+  "confianza_modelo": 0.86,
+  "cobertura_vocabulario": 0.78,
+  "motivo": null
 }
 ```
 
-La respuesta contiene `sugerida`, `entidad` (identificador, nombre, tipo, datos de contacto disponibles y ámbito territorial) y `motivo`. Si no hay coincidencia o existen candidatos equivalentes, devuelve el destino interno `revision_competencia`; no lo presenta como institución pública externa. La selección y derivación final deben seguir bajo control del ciudadano o del personal responsable.
+Los valores numéricos son ejemplos de formato, no una predicción garantizada. Si la evidencia no supera los umbrales, el servicio devuelve `sugerida: false` y un motivo para mantener la selección manual.
 
-**Estado del directorio:** `data/entidades_publicas.json` contiene 50 registros municipales de Lima Metropolitana y Callao. Los registros tienen nombre y ámbito territorial contrastados con el directorio del INEI 2026. La matriz habilita únicamente Limpieza y residuos y Parques y áreas verdes; el campo `verificado_competencias` no debe interpretarse como autorización para las demás categorías. Las 46 referencias PNP históricas están separadas y deshabilitadas. La lógica municipal es una coincidencia territorial y temática basada en catálogo; no es un nuevo modelo de aprendizaje automático ni una validación legal individual de cada incidente.
+### 8.3 Resolver distrito y consultar la matriz territorial
 
-Pruebas específicas: `tests/test_entidades.py` cubre directorio vacío, coincidencia territorial y temática, rechazo de otro distrito, categorías no habilitadas, exclusión de referencias PNP históricas, exigencia de GPS, resolución por polígono, comprobación del código en la capa de comisarías y abstención ante errores o resultados ambiguos.
-
-
-### Cobertura territorial inicial: Lima Metropolitana y Callao
-
-El catálogo `data/entidades_publicas.json` contiene 50 registros territoriales municipales: los 43 distritos de la provincia de Lima y los 7 distritos de la Provincia Constitucional del Callao. Para Lima (Cercado) se registra la Municipalidad Metropolitana de Lima y para Callao la Municipalidad Provincial del Callao; los demás registros corresponden a sus municipalidades distritales.
-
-La relación territorial se basa en el Directorio Nacional de Gobiernos Regionales, Municipalidades Provinciales y Distritales 2026 del INEI: https://www.gob.pe/institucion/inei/informes-publicaciones/8058591-national-directory-of-regional-provincial-municipalities-district-governments-and-of-populated-centers-2026. La PCM identifica a la provincia de Lima como conformada por 43 distritos: https://www.gob.pe/institucion/pcm/campanas/4355-limametropolitana-informacion-territorial. El Callao se trata como provincia constitucional separada.
-
-**Límite importante:** estos registros cubren municipalidades, no el directorio completo de entidades sectoriales. Las comisarías no se infieren a partir del distrito ni de las 46 referencias históricas. Para seguridad, la versión actual resuelve la jurisdicción mediante el polígono oficial de GEOMININTER y comprueba el código en la capa de comisarías. Los 50 registros municipales tienen `verificado_competencias: true` en el catálogo, pero la matriz solo habilita dos categorías: Limpieza y residuos y Parques y áreas verdes. No se deben usar las sugerencias como derivación automática sin revisión humana.
-
-
-### Referencias PNP para Lima y Callao (no habilitadas para derivación)
-
-Se añade `data/comisarias_pnp_referencia.json` con 46 referencias de comisarías que aparecen en el Anexo 01 del DU 085-2020. Se conservan como datos históricos de apoyo, no como un padrón vigente ni como una relación exhaustiva de todas las comisarías actuales. Cada registro lleva `habilitada_recomendacion: false` y la fecha/fuente correspondiente.
-
-La PNP publicó una línea base de 1,332 comisarías básicas operativas al 15/01/2026 (https://www.gob.pe/institucion/pnp/informes-publicaciones/7531378-linea-base-de-informacion-georreferenciada-de-comisarias-basicas-relacion-de-comisarias-operativas-a-nivel-nacional-2026) y un documento de comisarías con demarcación territorial identificada en mapa (https://www.gob.pe/institucion/pnp/informes-publicaciones/7173744-comisarias-de-la-policia-nacional-del-peru-con-demarcacion-territorial). La implementación usa el servicio geográfico oficial de GEOMININTER para la intersección espacial y confirmación del código; las 46 referencias del DU 085-2020 siguen deshabilitadas. La respuesta no asigna una comisaría usando únicamente el distrito administrativo.
-
-
-### Matriz de competencias y límites de derivación
-
-Se incorpora `data/matriz_competencias.json`. Se habilitan recomendaciones para **Limpieza y residuos** y **Parques y áreas verdes** a la municipalidad distrital correspondiente, bajo las condiciones de la matriz; **Seguridad ciudadana / delitos** mediante jurisdicción PNP geográfica; **Alumbrado público** mediante concesión eléctrica OSINERGMIN; y la subcategoría explícita **Transporte público urbano de pasajeros** hacia ATU, únicamente para las provincias de Lima y Callao. La categoría genérica `Tránsito y transporte` no se deriva automáticamente.
-
-Se mantienen bloqueadas las recomendaciones automáticas para:
-- **Alumbrado público:** se resuelve mediante GPS y consulta espacial al polígono oficial de concesión eléctrica de OSINERGMIN (capa 33). Solo se recomienda cuando la coordenada intersecta exactamente un polígono y su código `CODEMP` está reconocido.
-- **Transporte público urbano de pasajeros:** la subcategoría explícita se recomienda a ATU únicamente en las provincias de Lima y Callao, según la Ley 30900. La categoría genérica `Tránsito y transporte` continúa en abstención porque mezcla transporte público, señalización, semáforos y tránsito local.
-- **Vialidad e infraestructura:** el D.S. N.° 015-2024-MTC asigna la Red Vial Nacional al MTC, la Red Vial Departamental/Regional a los gobiernos regionales y la Red Vial Provincial/Urbana a municipalidades provinciales/distritales. No se recomienda todavía una entidad porque falta integrar y validar una capa consultable que identifique el tramo exacto y posibles delegaciones o concesiones.
-- **Seguridad / PNP:** se consulta la capa 2 `Jurisdicciones` (polígonos) para resolver espacialmente el punto de la denuncia y la capa 0 `Comisarias` (puntos) para comprobar la presencia del código devuelto. Las 46 referencias históricas del DU 085-2020 no se habilitan para asignación. La comprobación geográfica no certifica por sí sola la situación administrativa vigente de la dependencia; se mantiene revisión humana.
-
-Fuentes normativas y de datos:
-- Ley Orgánica de Municipalidades N.° 27972: https://cdn.www.gob.pe/uploads/document/file/2685861/Ley%20Organica%20de%20Municipalidades.pdf
-- Capa geográfica de comisarías MININTER: https://geomininter.mininter.gob.pe/arcgis/rest/services/pnp/policia_nacional_peru/MapServer/0
-- Padrón de comisarías operativas PNP 2026: https://www.gob.pe/institucion/pnp/informes-publicaciones/7531378-linea-base-de-informacion-georreferenciada-de-comisarias-basicas-relacion-de-comisarias-operativas-a-nivel-nacional-2026
-- Comisarías PNP con demarcación territorial: https://www.gob.pe/institucion/pnp/informes-publicaciones/7173744-comisarias-de-la-policia-nacional-del-peru-con-demarcacion-territorial
-
-Cuando no se identifica una institución pública única, el endpoint propone el destino interno `revision_competencia` (Bandeja de revisión de competencia de DenuPe). Este receptor permite que las denuncias válidas no queden sin destino, pero **no equivale a identificar a la entidad pública final**. El personal debe revisar y reasignar cuando corresponda.
-
-La recomendación es una ayuda informativa: no ejecuta una derivación administrativa ni sustituye la revisión de la entidad competente. Cuando una categoría no esté habilitada o no haya registro territorial verificable, el endpoint responde `sugerida: false`.
-
-
-## Validación territorial y despliegue HU-IA02 (actualización)
-
-### Policía Nacional: resolución por punto geográfico
-
-El endpoint `POST /api/ia/sugerir-entidad` admite ahora `latitud` y `longitud` opcionales. Para categorías de seguridad/delitos exige ambas coordenadas y consulta el servicio oficial GEOMININTER:
-- Capa 2 `Jurisdicciones`: geometría poligonal; realiza una consulta espacial `esriSpatialRelIntersects` con el punto de la denuncia.
-- Capa 0 `Comisarias`: comprueba que el código `cod_cpnp` devuelto por el polígono exista también en la capa operativa publicada.
-- Si faltan coordenadas, el servicio falla, la geometría no identifica exactamente una jurisdicción o el código no está en la capa operativa, devuelve `sugerida: false`.
-
-Servicio y esquema de capas: https://geomininter.mininter.gob.pe/arcgis/rest/services/pnp/policia_nacional_peru/MapServer/layers. La capa de jurisdicciones publica geometría poligonal y campos `cod_cpnp`, `comisaria`, `departamento`, `provincia`, `distrito`; la capa de comisarías publica puntos y los mismos códigos de identificación. La línea base PNP 2026 declara 1,332 comisarías básicas operativas a nivel nacional (corte 15/01/2026): https://www.gob.pe/institucion/pnp/informes-publicaciones/7531378-linea-base-de-informacion-georreferenciada-de-comisarias-basicas-relacion-de-comisarias-operativas-a-nivel-nacional-2026. La verificación en el MapServer es una comprobación de presencia en la capa geográfica, no certifica por sí sola el estatus administrativo actual de cada dependencia; mantener revisión humana para casos sensibles.
-
-Ejemplo de solicitud para seguridad:
-
-```json
-{
-  "categoria": "Seguridad ciudadana",
-  "departamento": "Lima",
-  "provincia": "Lima",
-  "distrito": "Miraflores",
-  "titulo": "Robo en la vía pública",
-  "descripcion": "Reporto un robo cerca del parque.",
-  "latitud": -12.12,
-  "longitud": -77.03
-}
+```bash
+curl "http://127.0.0.1:8000/api/territorio/catalogo-distrital?latitud=-12.12&longitud=-77.03"
 ```
 
-### Agua y saneamiento (SEDAPAL)
+La ubicación se utiliza para identificar el polígono distrital y obtener el UBIGEO. El servicio consulta la matriz de categorías de ese distrito en InsForge.
 
-Para la categoría **Agua y saneamiento**, el motor puede recomendar SEDAPAL cuando el distrito pertenece al ámbito documentado de Lima/Callao y el texto describe una incidencia de red (corte, fuga, tubería, aniego, desagüe o alcantarillado). La cobertura efectiva del predio y su conexión deben confirmarse con SEDAPAL; la recomendación no presume que todos los hogares estén conectados.
+### 8.4 Recomendar una entidad
 
-Fuentes: [Informe Defensorial sobre SEDAPAL](https://www.defensoria.gob.pe/wp-content/uploads/2025/03/Informe_Defensorial_Agua19.03.pdf) (ámbito de administración de SEDAPAL, 50 distritos de Lima y Callao) y [FONAFE](https://www.fonafe.gob.pe/empresasdelacorporacion/sedapalsa) (perfil institucional de SEDAPAL).
+```bash
+curl -X POST "http://127.0.0.1:8000/api/ia/sugerir-entidad" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "categoria": "Limpieza y residuos",
+    "departamento": "Lima",
+    "provincia": "Lima",
+    "distrito": "Miraflores",
+    "titulo": "Basura acumulada en la avenida",
+    "descripcion": "Hay bolsas de residuos y desperdicios sin recoger en la vía pública.",
+    "latitud": -12.12,
+    "longitud": -77.03
+  }'
+```
 
-### Otras competencias
+El distrito, provincia y departamento efectivos se resuelven desde el GPS. La respuesta contiene `sugerida`, `entidad` y `motivo`. Si no se identifica una institución concreta de manera suficiente, el servicio se abstiene; no se debe interpretar la abstención como una derivación a una entidad pública.
 
-- **Limpieza y residuos:** municipalidad distrital, con base en el artículo 80 de la Ley 27972, para limpieza pública local: https://cdn.www.gob.pe/uploads/document/file/9972022/8133550-ley-organica-de-municipalidades-ley-n-27972.pdf.
-- **Parques y áreas verdes:** municipalidad distrital solo cuando se trate de parque/jardín público de administración local; la gestión concreta del espacio debe confirmarse.
-- **Transporte público urbano:** la ATU tiene jurisdicción en Lima y Callao para el sistema integrado de transporte terrestre urbano de personas (Ley 30900): https://www.leyes.congreso.gob.pe/documentos/2016_2021/adlp/normas_legales/30900_ley.pdf. La implementación habilita exclusivamente la subcategoría `Transporte público urbano de pasajeros`; no activa la categoría genérica `Tránsito y transporte`.
-- **Alumbrado público:** OSINERGMIN indica que las deficiencias deben denunciarse ante la empresa eléctrica que brinda el servicio. La capa 33 `Área de Concesión` del servicio geográfico oficial publica polígonos y el dominio de códigos de empresa: https://gisem.osinergmin.gob.pe/serverosih/rest/services/Electricidad/ELECTRICIDAD/MapServer/33. Guía de atención: https://www.osinergmin.gob.pe/Paginas/Folletos/folletos/electricidad.html.
-- **Vialidad:** el D.S. N.° 015-2024-MTC establece la distribución de responsabilidades por jerarquía vial (MTC para red nacional, gobiernos regionales para red departamental y gobiernos locales para red provincial/urbana): https://busquedas.elperuano.pe/dispositivo/NL/2325194-1. IDEP registra capas MTC 2025 para redes nacional, departamental y vecinal, pero varias solo ofrecen WMS; antes de automatizar la recomendación se debe confirmar una fuente de consulta de entidades/tramos con atributos y vigencia, además de delegaciones y concesiones: https://www.geoidep.gob.pe/catalogo-nacional-de-servicios-web/servicio-de-visualizacion-wms.
+### 8.5 Endpoints disponibles
 
-### Configuración y pruebas
+| Método | Endpoint | Propósito |
+|---|---|---|
+| `GET` | `/health` | Estado básico del servicio. |
+| `GET` | `/health/ready` | Disponibilidad del modelo y directorio local. |
+| `POST` | `/api/ia/sugerir-categoria` | Recomendación de categoría desde texto. |
+| `GET` | `/api/territorio/resolver-distrito` | Resolución de distrito mediante GPS. |
+| `GET` | `/api/territorio/catalogo-distrital` | Matriz de categorías del distrito. |
+| `POST` | `/api/ia/sugerir-entidad` | Recomendación de entidad con GPS. |
+| `GET` | `/api/entidades/disponibles` | Listado de opciones para categoría y ubicación. |
 
-- Variable opcional `PNP_MAPSERVER_URL`: permite configurar la URL base del MapServer oficial.
-- Variable opcional `PNP_TIMEOUT_SECONDS`: timeout de consulta (por defecto 5 segundos).
-- La consulta PNP y la consulta de concesiones eléctricas usan la biblioteca estándar de Python, sin agregar dependencias de producción.
-- `OSINERGMIN_MAPSERVER_URL`: permite configurar la URL base del servicio oficial de concesiones eléctricas (opcional).
-- `OSINERGMIN_TIMEOUT_SECONDS`: timeout de consulta OSINERGMIN (por defecto 5 segundos).
-- Pruebas agregadas para exigir GPS, resolver jurisdicción PNP por polígono, confirmar el código en la capa operativa, resolver la concesionaria eléctrica por el polígono de OSINERGMIN, validar ATU en Lima y Callao y abstenerse ante categoría genérica, ámbito territorial incorrecto, ausencia de coordenadas, ambigüedad, códigos desconocidos o errores del servicio.
+Códigos HTTP relevantes: `200` solicitud procesada (puede incluir abstención), `413` cuerpo demasiado grande, `422` datos inválidos o punto no resoluble, `429` límite de solicitudes excedido, `503` catálogo InsForge no disponible y `500` error interno.
+
+## 9. Roadmap y limitaciones conocidas
+
+### Próximas mejoras
+- Incorporar un conjunto de denuncias reales anonimizadas y etiquetadas para evaluar el clasificador con datos independientes.
+- Medir el rendimiento por categoría, distrito, ambigüedad y casos fuera del dominio de entrenamiento.
+- Calibrar las probabilidades y revisar periódicamente los umbrales de abstención.
+- Ampliar y verificar los directorios de entidades y sus competencias con fuentes oficiales vigentes.
+- Completar la identificación de la entidad competente para las categorías y subcategorías que aún requieren revisión manual.
+- Incorporar autenticación de solicitudes mediante tokens del proveedor de identidad o un gateway antes de exponer la API públicamente.
+- Evaluar un limitador distribuido para despliegues con varias instancias.
+
+### Limitaciones conocidas
+- El entrenamiento actual utiliza **2.400 ejemplos sintéticos** (300 por categoría), no denuncias reales.
+- Las métricas del benchmark sintético no demuestran la precisión del modelo en producción. Las probabilidades de `predict_proba` no están calibradas.
+- La matriz de InsForge relaciona ocho categorías con resolutores sectoriales por distrito, pero esa relación no prueba por sí sola qué institución concreta debe recibir cada denuncia.
+- El directorio municipal local documentado tiene cobertura inicial de 50 distritos de Lima Metropolitana y Callao. La matriz territorial nacional no equivale a un directorio nacional completo de instituciones concretas.
+- Algunas competencias solo se recomiendan bajo condiciones específicas. Por ejemplo, transporte público urbano de pasajeros se distingue de la categoría genérica de tránsito y transporte; vialidad e infraestructura puede requerir identificar primero la jerarquía y el tramo de la vía.
+- La API no implementa autenticación JWT propia. CORS no es un mecanismo de autenticación y una clave incluida en una aplicación móvil puede extraerse.
+- El limitador actual mantiene contadores en memoria y opera por proceso; no comparte estado entre instancias.
+
+## 10. Contribución y licencia
+
+### Contribuir
+Se aceptan propuestas de mejora, correcciones y reportes de errores mediante GitHub:
+
+1. Revisa los issues existentes y abre uno nuevo si el problema no está reportado.
+2. Crea una rama descriptiva desde la rama de desarrollo vigente, por ejemplo `feat/nueva-validacion`, `fix/error-resolucion-gps` o `docs/actualizar-guia`.
+3. Realiza cambios acotados y agrega o actualiza pruebas para el comportamiento modificado.
+4. Ejecuta `python -m pytest -q` y verifica que no se expongan secretos ni datos personales.
+5. Abre un Pull Request con resumen, justificación, pruebas ejecutadas, posibles impactos y evidencia relevante.
+
+Los cambios que afecten competencias públicas, fuentes geográficas o reglas de derivación deben incluir la fuente oficial, fecha de consulta, ámbito territorial y casos de abstención. No se deben añadir instituciones o competencias sin evidencia verificable.
+
+- **Reportar errores:** [GitHub Issues](https://github.com/Zarabia-22/denupe-ia-backend/issues)
+- **Proponer cambios:** [Pull Requests](https://github.com/Zarabia-22/denupe-ia-backend/pulls)
+
+### Licencia
+En la rama `main` no se encontró un archivo `LICENSE`. Por tanto, el repositorio **no declara actualmente una licencia de código abierto**. No debe asumirse que el código está bajo MIT, GPL u otra licencia. Antes de reutilizarlo, redistribuirlo o incorporarlo en otro producto, solicita autorización al titular o acuerda y agrega una licencia explícita.
+
+## 11. Arquitectura y referencia técnica
+
+### Flujo general
+
+```text
+                 Aplicación móvil DenuPe
+                          |
+                          v
+                       FastAPI
+                          |
+             +------------+-------------+
+             |                          |
+             v                          v
+     Sugerencia de categoría     Resolución territorial
+             |                          |
+       Normalización de texto      Coordenadas GPS
+             |                          |
+       TF-IDF palabras y            Polígono distrital
+       caracteres                   + UBIGEO
+             |                          |
+       Regresión logística         Catálogo InsForge
+             |                     (matriz por categoría)
+       Umbrales y abstención             |
+             |                     Resolutor sectorial
+             +------------+-------------+
+                          |
+                    Respuesta JSON
+```
+
+### Módulos principales
+
+| Archivo | Responsabilidad |
+|---|---|
+| `app/main.py` | Inicialización de FastAPI, middleware y rutas. |
+| `app/schemas.py` | Contratos y validaciones Pydantic. |
+| `app/predictor.py` | Carga del modelo y recomendación de categoría. |
+| `app/text_processing.py` | Normalización y cobertura del vocabulario. |
+| `app/categorias.py` | Códigos y nombres de las ocho categorías. |
+| `app/entidades.py` | Directorios, resolución territorial y recomendación/listado de entidades. |
+| `app/insforge_catalog.py` | Cliente RPC para el catálogo territorial InsForge. |
+| `app/middleware.py` | Límite de cuerpo, cuota por IP, request ID y cabeceras. |
+| `training/train.py` | Preparación de datos, comparación y entrenamiento del modelo. |
+| `models/` | Modelo, vectorizador y métricas. |
+| `data/` | Datos sintéticos y catálogos locales. |
+| `tests/` | Pruebas de API, modelo, catálogos y resolución territorial. |
+
+### Modelo de clasificación
+
+El conjunto de entrenamiento contiene 2.400 ejemplos sintéticos, 300 por categoría, derivados de 480 casos base con cinco variantes de redacción cada uno. La división agrupada y estratificada utiliza 1.680 ejemplos para entrenamiento, 360 para validación y 360 para prueba. Se comparan cinco configuraciones de modelos; la selección se realiza con validación y el conjunto de prueba se reserva para evaluación.
+
+El benchmark documentado reporta **96,67 % de accuracy y 96,66 % de F1 macro** en el conjunto de prueba sintético (348 aciertos de 360). El filtro de recomendación emitió 343 sugerencias y acertó 340 de ellas. Estas cifras describen exclusivamente ese benchmark artificial; no son una garantía de precisión sobre denuncias reales.
+
+Artefactos generados:
+- `models/modelo_categorias.joblib.gz`
+- `models/vectorizador_tfidf.joblib.gz`
+- `models/metricas.json`
+
+Para reentrenar:
+
+```bash
+pip install -r requirements-dev.txt
+python -m training.train
+python -m pytest -q
+```
+
+### Catálogo territorial y abstención
+
+Para operaciones territoriales, el backend resuelve las coordenadas sobre el servicio de límites distritales, obtiene el UBIGEO y consulta en InsForge las funciones RPC `consultar_matriz_distrital_por_ubigeo` y `consultar_entidades_por_ubigeo`. La matriz debe contener exactamente las ocho categorías. Si faltan credenciales, falla la consulta o la respuesta es incompleta, el servicio falla de forma cerrada.
+
+La existencia de un resolutor sectorial no equivale a una institución concreta confirmada. Las reglas locales y las consultas geográficas se aplican con condiciones específicas; ante falta de evidencia, resultados ambiguos o fuentes no disponibles, se conserva la selección manual o se utiliza la bandeja interna de revisión de competencia de DenuPe.
+
+### Seguridad y privacidad
+
+- El middleware limita el cuerpo HTTP a 16 KiB por defecto y aplica una cuota predeterminada de 120 solicitudes por IP y minuto por proceso.
+- Las respuestas incorporan un identificador de solicitud y cabeceras de seguridad.
+- El backend no registra deliberadamente el título, descripción, coordenadas ni datos personales de la denuncia.
+- La clave administrativa de InsForge debe mantenerse únicamente como secreto del servidor.
+- Los archivos Joblib deben proceder de una fuente confiable, ya que su deserialización puede ejecutar código.
+- Las recomendaciones no sustituyen la revisión humana ni ejecutan una derivación administrativa.
 
 ### Despliegue
 
-El repositorio define `render.yaml` con runtime Docker, `/health` y despliegue por commit. El push a esta rama puede desplegar automáticamente solo si el servicio Render está vinculado a esta rama y tiene auto-deploy habilitado. No se debe afirmar que está desplegado hasta comprobar un deploy exitoso y consultar el endpoint en el servicio correspondiente.
+El repositorio incluye `Dockerfile` y `render.yaml`. La configuración define un servicio web Docker en Render y usa `/health` como health check. Para desplegarlo, configura las variables privadas en el panel del proveedor y vincula la rama correspondiente. La existencia de estos archivos no garantiza que un servicio esté activo; verifica el estado del despliegue y consulta sus endpoints.
 
+---
 
-## Robustez del PMV2
-
-### Validación y límites HTTP
-- Los contratos rechazan campos adicionales, textos vacíos y coordenadas incompletas o fuera de rango.
-- El middleware limita el tamaño real del cuerpo HTTP (por defecto 16 KiB), aplica una cuota por IP (120 solicitudes/minuto por proceso) y agrega identificador de solicitud y cabeceras de seguridad.
-- Variables: `MAX_REQUEST_BODY_BYTES` y `RATE_LIMIT_PER_MINUTE`.
-- Las consultas espaciales a MININTER y OSINERGMIN tienen timeout configurable, limitan la consulta a dos resultados y aceptan respuestas JSON de hasta 1 MiB; ante error, estructura inválida o ambigüedad, el recomendador se abstiene.
-- El limitador incluido mantiene contadores en memoria y es adecuado únicamente para una instancia. En despliegues con varias instancias debe trasladarse a Redis o a un gateway gestionado; no se debe confiar en `X-Forwarded-For` sin configurar proxies de confianza.
-
-### Salud y diagnóstico
-- `GET /health` conserva el contrato existente para Render.
-- `GET /health/ready` comprueba que el modelo de ocho categorías está cargado y expone solo metadatos técnicos.
-- Cada respuesta incluye `X-Request-ID`; no se registran deliberadamente títulos, descripciones, coordenadas ni datos personales.
-
-### Catálogos
-Los archivos JSON se validan al cargarse: estructura, campos obligatorios, tipos, identificadores duplicados y coherencia entre entidades habilitadas y competencias verificadas. Un catálogo corrupto produce un error explícito, nunca una recomendación silenciosamente incorrecta.
-
-### Seguridad pendiente antes de exposición pública
-Este backend no valida identidad de usuario ni JWT. CORS no es autenticación y una clave estática embebida en Flutter puede extraerse. Antes de abrir el endpoint públicamente, integrar validación de tokens del proveedor de identidad de DenuPe o colocar un gateway que autentique y limite tráfico. No habilitar derivación automática: las respuestas siguen siendo sugerencias y requieren decisión humana.
-
-
-## Catálogo preconfigurado por distrito y resolución GPS
-
-La cobertura inicial mantiene los **50 distritos de Lima Metropolitana y Callao**. El endpoint GET /api/territorio/catalogo-distrital expone una matriz de las ocho categorías para el distrito solicitado. Puede recibir el distrito administrativo o, preferentemente, latitud y longitud; cuando se envían coordenadas, el backend resuelve el distrito por intersección del punto con la capa poligonal distrital (capa 3) y valida el UBIGEO contra el catálogo local. El GPS prevalece sobre cualquier distrito escrito por el cliente.
-
-Ejemplos:
-
-```http
-GET /api/territorio/resolver-distrito?latitud=-12.12&longitud=-77.03
-GET /api/territorio/catalogo-distrital?latitud=-12.12&longitud=-77.03
-GET /api/territorio/catalogo-distrital?departamento=Lima&provincia=Lima&distrito=Miraflores
-```
-
-La matriz configura las rutas para todas las categorías: municipalidad para limpieza y parques bajo sus condiciones locales; SEDAPAL para agua/saneamiento dentro del ámbito documentado de Lima y Callao; resolución espacial por GPS para PNP y concesionarias eléctricas; y revisión de competencia para tránsito genérico, vialidad sin titularidad de tramo verificada y Otros. Una ruta preconfigurada no significa que cualquier entidad sea competente para cualquier incidente: los casos sin prueba territorial o sectorial suficiente permanecen en revisión.
-
-Fuente de límites distritales: servicio cartográfico del Estado, capa 3 Límite Distrital, atributos UBIGEO, NOMBDEP, NOMBPROV y NOMBDIST: https://ws.mineco.gob.pe/server/rest/services/cartografia_base_limites/MapServer/layers. La fuente publica polígonos en WGS84 (EPSG:4326). La plataforma Geo Perú advierte que los límites mostrados son referenciales y atribuidos al INEI; para controversias de demarcación debe prevalecer la delimitación oficial inscrita en RENLIM. La resolución GPS del PMV es una identificación operativa de distrito, no una determinación legal de límites.
-
-Variables opcionales:
-- DISTRITOS_MAPSERVER_URL: URL base del MapServer de límites distritales.
-- DISTRITOS_TIMEOUT_SECONDS: timeout de consulta (por defecto 5 segundos).
-
-Si la coordenada no cae en un único polígono, el UBIGEO no es válido, el servicio no responde o el distrito no forma parte de los 50 configurados, el endpoint no inventa el distrito y devuelve un error explícito para que la app solicite corrección o selección manual.
-
-
-### Relación obligatoria entidad–categoría por distrito (actualización)
-
-El endpoint `GET /api/territorio/catalogo-distrital` ahora devuelve una entidad principal relacionada con **cada una de las ocho categorías** en cada uno de los 50 distritos configurados de Lima Metropolitana y Callao. Cada categoría incluye `entidades`, `entidad_principal`, `respaldo`, `ruta` y un `estado` que indica si la entidad ya está determinada o si requiere una resolución adicional.
-
-| Categoría | Entidad principal preconfigurada | Regla para seleccionar/confirmar |
-|---|---|---|
-| Alumbrado público | Concesionaria eléctrica del punto | GPS + polígono de concesión OSINERGMIN; municipalidad como apoyo local |
-| Seguridad ciudadana | PNP / comisaría de la jurisdicción | GPS + polígono PNP; serenazgo municipal es apoyo, no reemplazo de PNP |
-| Limpieza y residuos | Municipalidad del distrito | Competencia local para limpieza pública |
-| Agua y saneamiento | SEDAPAL en Lima/Callao; municipalidad como ventanilla de orientación fuera de ese ámbito | Confirmar cobertura efectiva y operador del predio |
-| Tránsito y transporte | ATU, municipalidad provincial/metropolitana y municipalidad distrital | Clasificar transporte público, tránsito local, semáforos y tipo de vía |
-| Parques y áreas verdes | Municipalidad del distrito | Confirmar que el espacio sea público y esté bajo administración local |
-| Vialidad e infraestructura | MTC/Provías, Gobierno Regional, municipalidad provincial o distrital | GPS + jerarquía, titularidad, concesión o delegación del tramo |
-| Otros | Municipalidad del distrito como primer punto de orientación | Clasificación posterior; no se presume que sea la autoridad sectorial final |
-
-**Importante:** “relacionada” no significa que todas las instituciones sean competentes para cualquier incidente de esa categoría. En alumbrado, PNP, tránsito y vialidad, el catálogo preconfigura la familia de entidades y la regla de resolución; la institución concreta depende del punto GPS y del tipo de hecho. En agua se debe confirmar el operador efectivo. Para “Otros”, la municipalidad es una ventanilla inicial de orientación, no una atribución universal de competencia. `revision_competencia` continúa existiendo únicamente como bandeja interna de respaldo de DenuPe y nunca se muestra como entidad pública ni como entidad principal de la matriz.
-
-La cobertura de esta matriz sigue limitada a los 50 distritos configurados de Lima Metropolitana y Callao. No se debe afirmar cobertura nacional hasta incorporar y validar directorios municipales y operadores de saneamiento, electricidad, PNP y autoridades viales de las demás regiones. Se añadió una prueba que recorre los 50 registros y exige ocho de ocho categorías con entidad principal relacionada.
-
-
-### Catálogo territorial nacional en InsForge (integración en curso)
-
-El servicio resuelve primero las coordenadas contra el polígono distrital oficial y obtiene el UBIGEO. Con ese código consulta las RPC de InsForge:
-
-- `consultar_matriz_distrital_por_ubigeo(p_ubigeo)`: exige exactamente ocho relaciones, una por categoría.
-- `consultar_entidades_por_ubigeo(p_ubigeo, p_categoria_code)`: recupera el resolutor sectorial de la categoría.
-- `GET /api/territorio/catalogo-distrital?latitud=...&longitud=...`: devuelve la matriz solo con GPS.
-- `GET /api/territorio/resolver-distrito?latitud=...&longitud=...`: devuelve el UBIGEO validado y confirma que existe la matriz completa.
-
-Configura en Render, como variables privadas del servicio:
-
-- `INSFORGE_URL`: URL base del proyecto InsForge.
-- `INSFORGE_API_KEY`: API Key administrativa `ik_...`; **solo en el backend**, nunca en Flutter ni en el repositorio.
-- `INSFORGE_TIMEOUT_SECONDS`: timeout de la consulta (por defecto 8 segundos).
-
-La integración falla de forma cerrada: si faltan credenciales, la RPC no responde o la matriz no contiene las ocho categorías, no devuelve un catálogo alternativo local ni asigna una entidad. La matriz contiene resolutores sectoriales, no nombres verificados de cada comisaría, EPS, concesionaria o titular vial. Para esos casos el servicio debe conservar la selección manual hasta confirmar la entidad concreta.
-
-**Importante:** antes de activar esta integración, aplica la migración del repositorio principal en un entorno InsForge de pruebas y comprueba las dos RPC. La migración debe usar el rol administrativo `project_admin` de InsForge para la escritura confiable; no usa el rol `service_role` de Supabase. No se debe copiar la API Key al cliente móvil.
+<p align="center">
+  Proyecto DenuPe · Backend de inteligencia artificial y resolución territorial
+</p>
