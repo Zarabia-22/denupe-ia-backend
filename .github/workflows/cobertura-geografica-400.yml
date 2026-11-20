@@ -1,0 +1,56 @@
+name: Cobertura geográfica 400 casos
+
+on:
+  push:
+    branches:
+      - test/cobertura-geografica-400
+    paths:
+      - "scripts/prueba_cobertura_geografica_400.py"
+      - "data/entidades_publicas.json"
+      - "app/entidades.py"
+      - "app/schemas.py"
+      - ".github/workflows/cobertura-geografica-400.yml"
+  pull_request:
+    branches:
+      - feat/robustez-motor-geografico
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cobertura-400:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Timeouts acotados: si un GIS público no responde, el motor debe caer
+      # limpiamente en revisión de competencia en lugar de bloquear la matriz.
+      PNP_TIMEOUT_SECONDS: "2"
+      OSINERGMIN_TIMEOUT_SECONDS: "2"
+      ARCGIS_RETRIES: "0"
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Ejecutar las 400 pruebas geográficas
+        run: python scripts/prueba_cobertura_geografica_400.py
+
+      - name: Publicar informe CSV y JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: denupe-cobertura-geografica-400
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 30

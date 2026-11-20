@@ -1,0 +1,44 @@
+{
+  "version": "2026-11",
+  "criterio": "Una fuente acredita únicamente los campos que publica; el directorio de municipalidades no acredita competencia sectorial.",
+  "fuentes": [
+    {
+      "id": "inei_municipalidades_2026",
+      "institucion": "Instituto Nacional de Estadística e Informática",
+      "uso_permitido": ["nombre oficial", "tipo de municipalidad", "dirección", "teléfono", "correo", "identificación territorial cuando esté disponible"],
+      "no_acredita": ["competencia exclusiva por categoría", "titularidad de infraestructura", "ámbito de concesiones"],
+      "url": "https://www.gob.pe/institucion/inei/informes-publicaciones/8058591-directorio-nacional-de-gobiernos-regionales-municipalidades-provinciales-distritales-y-de-centros-poblados-2026",
+      "fecha_referencia": "2026-04-24"
+    },
+    {
+      "id": "pnp_comisarias_2026",
+      "institucion": "Policía Nacional del Perú",
+      "uso_permitido": ["identidad y ubicación de comisarías operativas publicadas"],
+      "no_acredita": ["asignación automática por distrito sin validar jurisdicción policial"],
+      "url": "https://www.gob.pe/institucion/pnp/informes-publicaciones/7531378-linea-base-de-informacion-georreferenciada-de-comisarias-basicas-relacion-de-comisarias-operativas-a-nivel-nacional-2025",
+      "fecha_referencia": "2026-01-15"
+    },
+    {
+      "id": "sunass_eps_2026",
+      "institucion": "Superintendencia Nacional de Servicios de Saneamiento",
+      "uso_permitido": ["identidad de EPS y datos del directorio", "áreas de prestación publicadas"],
+      "no_acredita": ["cobertura de toda una provincia por simple proximidad"],
+      "url": "https://www.gob.pe/institucion/sunass/informes-publicaciones/6406887-directorio-de-eps-a-nivel-nacional",
+      "fecha_referencia": "2026-04-23"
+    },
+    {
+      "id": "osinergmin_concesiones_electricas",
+      "institucion": "Organismo Supervisor de la Inversión en Energía y Minería",
+      "uso_permitido": ["consulta geográfica de concesiones eléctricas"],
+      "no_acredita": ["asignación municipal de alumbrado público", "competencia de una empresa sin intersección geográfica válida"],
+      "url": "https://gisem.osinergmin.gob.pe/serverosih/rest/services/Electricidad/Consulta_Empresa_ZRT/MapServer"
+    },
+    {
+      "id": "sunass_area_prestacion_datos_abiertos",
+      "institucion": "Superintendencia Nacional de Servicios de Saneamiento",
+      "uso_permitido": ["área de prestación y prestador asociado según dataset"],
+      "no_acredita": ["cobertura fuera del área delimitada"],
+      "url": "https://www.datosabiertos.gob.pe/dataset/%C3%A1rea-de-la-prestaci%C3%B3n-de-servicios-de-saneamiento-sunass"
+    }
+  ]
+}

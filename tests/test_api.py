@@ -96,3 +96,137 @@ def test_normalizacion_de_tildes_y_espacios():
     from app.text_processing import normalizar_texto
     assert normalizar_texto(" ÁRBOL  CAÍDO\tEN  EL  PARQUE! ") == "arbol caido en el parque"
     assert "@" not in normalizar_texto("Consulta: vecino@ejemplo.com")
+
+
+
+def test_entidad_rechaza_coordenadas_sin_par():
+    with TestClient(app) as cliente:
+        response = cliente.post("/api/ia/sugerir-entidad", json={
+            "categoria": "Seguridad ciudadana",
+            "departamento": "Lima",
+            "provincia": "Lima",
+            "distrito": "Miraflores",
+            "titulo": "Robo en la vía pública",
+            "descripcion": "Reporto un robo ocurrido cerca del parque.",
+            "latitud": -12.12,
+        })
+    assert response.status_code == 422
+
+
+def test_entidad_rechaza_campos_extra():
+    with TestClient(app) as cliente:
+        response = cliente.post("/api/ia/sugerir-entidad", json={
+            "categoria": "Limpieza y residuos",
+            "departamento": "Lima",
+            "provincia": "Lima",
+            "distrito": "Miraflores",
+            "titulo": "Basura acumulada en la avenida",
+            "descripcion": "Hay residuos acumulados en la vía pública.",
+            "dni": "12345678",
+        })
+    assert response.status_code == 422
+
+
+def test_health_ready_expone_estado_tecnico():
+    with TestClient(app) as cliente:
+        response = cliente.get("/health/ready")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
+    assert response.json()["categorias"] == 8
+
+
+
+def test_respuestas_incluyen_identificador_y_cabeceras_de_seguridad():
+    with TestClient(app) as cliente:
+        response = cliente.get("/health")
+    assert response.status_code == 200
+    assert response.headers.get("x-request-id")
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["cache-control"] == "no-store"
+
+
+def test_solicitud_demasiado_grande_se_rechaza():
+    with TestClient(app) as cliente:
+        response = cliente.post(
+            "/api/ia/sugerir-categoria",
+            content=b"x" * 17000,
+            headers={"content-type": "application/json"},
+        )
+    assert response.status_code == 413
+
+
+def test_health_ready_valida_el_catalogo_de_entidades():
+    with TestClient(app) as cliente:
+        response = cliente.get("/health/ready")
+    assert response.status_code == 200
+    assert response.json()["entidades_catalogo"] == 96
+
+
+def test_entidades_disponibles_exige_gps_antes_de_listar():
+    with TestClient(app) as cliente:
+        response = cliente.get("/api/entidades/disponibles", params={
+            "categoria": "Limpieza y residuos",
+            "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
+        })
+    assert response.status_code == 422
+
+
+def test_entidades_disponibles_no_expone_categoria_no_habilitada_sin_gps():
+    with TestClient(app) as cliente:
+        response = cliente.get("/api/entidades/disponibles", params={
+            "categoria": "Vialidad e infraestructura",
+            "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
+        })
+    assert response.status_code == 422
+
+
+def test_listar_entidades_disponibles_rechaza_coordenadas_incompletas():
+    with TestClient(app) as cliente:
+        response = cliente.get("/api/entidades/disponibles", params={
+            "categoria": "Seguridad ciudadana",
+            "departamento": "Lima",
+            "provincia": "Lima",
+            "distrito": "Miraflores",
+            "latitud": -12.12,
+        })
+    assert response.status_code == 422
+
+
+def test_entidades_disponibles_no_consulta_sedapal_sin_gps():
+    with TestClient(app) as cliente:
+        response = cliente.get("/api/entidades/disponibles", params={
+            "categoria": "Agua y saneamiento",
+            "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
+        })
+    assert response.status_code == 422
+
+
+def test_entidades_disponibles_no_ofrece_revision_sin_gps():
+    with TestClient(app) as cliente:
+        response = cliente.get("/api/entidades/disponibles", params={
+            "categoria": "Otros",
+            "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
+        })
+    assert response.status_code == 422
+
+
+def test_entidades_disponibles_consulta_matriz_tras_resolver_gps(monkeypatch):
+    from app import main
+    monkeypatch.setattr(main, "resolver_distrito_por_punto", lambda lat, lon: {
+        "ubigeo": "150122", "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
+    })
+    monkeypatch.setattr(main, "consultar_resolutor_categoria", lambda ubigeo, codigo: {
+        "requiere_gps": True, "asignar_solo_tras_gps": True,
+    })
+    monkeypatch.setattr(main, "listar_entidades_disponibles", lambda *args: [{
+        "id": "mun-150122", "nombre": "Municipalidad Distrital de Miraflores",
+        "tipo": "municipalidad_distrital",
+        "ambito": {"departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores"},
+    }])
+    with TestClient(app) as cliente:
+        response = cliente.get("/api/entidades/disponibles", params={
+            "categoria": "Limpieza y residuos",
+            "latitud": -12.12, "longitud": -77.03,
+        })
+    assert response.status_code == 200
+    assert response.json()["entidades"][0]["ambito"]["distrito"] == "Miraflores"

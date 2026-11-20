@@ -1,0 +1,107 @@
+{
+  "version": "1.2.0",
+  "alcance": "Lima Metropolitana y Provincia Constitucional del Callao",
+  "reglas": [
+    {
+      "categoria": "Limpieza y residuos",
+      "entidad": "Municipalidad distrital correspondiente",
+      "habilitada": true,
+      "condiciones": [
+        "Residuos sólidos o limpieza pública en espacios públicos dentro del distrito",
+        "Validar que el incidente no corresponda a vía o infraestructura bajo otra administración"
+      ],
+      "fundamento": "Ley 27972, art. 80, funciones distritales de limpieza pública.",
+      "fuente": "https://cdn.www.gob.pe/uploads/document/file/9972022/8133550-ley-organica-de-municipalidades-ley-n-27972.pdf"
+    },
+    {
+      "categoria": "Parques y áreas verdes",
+      "entidad": "Municipalidad distrital correspondiente",
+      "habilitada": true,
+      "condiciones": [
+        "Parque o jardín público de administración local dentro del distrito"
+      ],
+      "fundamento": "Competencias municipales sobre servicios públicos locales y espacios recreativos; verificar administración del parque concreto.",
+      "fuente": "https://cdn.www.gob.pe/uploads/document/file/9972022/8133550-ley-organica-de-municipalidades-ley-n-27972.pdf"
+    },
+    {
+      "categoria": "Seguridad ciudadana / delitos",
+      "entidad": "Comisaría PNP que contiene geográficamente el punto de la denuncia",
+      "habilitada": true,
+      "condiciones": [
+        "Se requiere latitud y longitud GPS",
+        "La coordenada debe intersectar exactamente una jurisdicción en la capa PNP Jurisdicciones (polígono)",
+        "El código de comisaría debe existir también en la capa Comisarias (punto)",
+        "Si el servicio falla, hay cero o múltiples polígonos o no existe código operativo, abstenerse"
+      ],
+      "fundamento": "Consulta espacial en el servicio oficial GEOMININTER; no se utiliza el distrito administrativo como sustituto de la demarcación policial.",
+      "fuente": "https://geomininter.mininter.gob.pe/arcgis/rest/services/pnp/policia_nacional_peru/MapServer"
+    },
+    {
+      "categoria": "Transporte público urbano de pasajeros",
+      "entidad": "Autoridad de Transporte Urbano para Lima y Callao (ATU)",
+      "habilitada": true,
+      "condiciones": [
+        "La categoría debe ser exactamente Transporte público urbano de pasajeros; no se habilita la categoría genérica Tránsito y transporte",
+        "La provincia debe ser Lima (departamento Lima) o Callao (departamento Callao)",
+        "La recomendación se limita a asuntos del sistema integrado de transporte urbano de personas; requiere revisión humana para confirmar la materia concreta",
+        "No se recomienda ATU para semaforización, señalización vial local, daños de infraestructura vial ni infracciones ajenas a su ámbito"
+      ],
+      "fundamento": "Ley 30900, artículo 3: la ATU ejerce jurisdicción en toda la provincia de Lima y la Provincia Constitucional del Callao para el sistema integrado de transporte terrestre urbano de personas.",
+      "fuente": "https://www.leyes.congreso.gob.pe/documentos/2016_2021/adlp/normas_legales/30900_ley.pdf"
+    },
+    {
+      "categoria": "Alumbrado público",
+      "entidad": "Empresa concesionaria eléctrica que contiene geográficamente el punto de la denuncia",
+      "habilitada": true,
+      "condiciones": [
+        "Se requiere latitud y longitud GPS de la denuncia",
+        "La coordenada debe intersectar exactamente un polígono de la capa 33 Área de Concesión de OSINERGMIN",
+        "El atributo CODEMP debe corresponder a un código de empresa reconocido en el dominio oficial de la capa",
+        "Si faltan coordenadas, el servicio falla, hay cero o múltiples polígonos o el código no está reconocido, abstenerse"
+      ],
+      "fundamento": "OSINERGMIN publica la capa georreferenciada Área de Concesión (polígonos) con el código CODEMP de la empresa concesionaria. OSINERGMIN indica que las deficiencias del alumbrado público deben reportarse a la empresa eléctrica que brinda el servicio.",
+      "fuente": "https://gisem.osinergmin.gob.pe/serverosih/rest/services/Electricidad/ELECTRICIDAD/MapServer/33",
+      "fuente_secundaria": "https://www.osinergmin.gob.pe/Paginas/Folletos/folletos/electricidad.html"
+    },
+    {
+      "categoria": "Agua y saneamiento",
+      "entidad": "Servicio de Agua Potable y Alcantarillado de Lima (SEDAPAL)",
+      "habilitada": true,
+      "condiciones": [
+        "Departamento/provincia: Lima/Lima o Callao/Callao y distrito incluido en el directorio territorial validado",
+        "El título o descripción debe indicar una incidencia de agua potable, fuga, corte, tubería, desagüe o alcantarillado",
+        "La cobertura efectiva del predio y la conexión al servicio deben confirmarse con SEDAPAL",
+        "Si el distrito no está en el catálogo o el texto no identifica una incidencia de la red, abstenerse"
+      ],
+      "fundamento": "SEDAPAL tiene ámbito de responsabilidad en la provincia de Lima y la Provincia Constitucional del Callao. El directorio territorial de la Defensoría del Pueblo enumera los 50 distritos de Lima y Callao comprendidos en dicho ámbito; la cobertura efectiva del predio requiere confirmación.",
+      "fuente": "https://www.defensoria.gob.pe/wp-content/uploads/2025/03/Informe_Defensorial_Agua19.03.pdf",
+      "fuente_secundaria": "https://www.fonafe.gob.pe/empresasdelacorporacion/sedapalsa"
+    },
+    {
+      "categoria": "Vialidad e infraestructura",
+      "entidad": "Pendiente de identificar por tramo: MTC, gobierno regional, municipalidad provincial o municipalidad distrital",
+      "habilitada": false,
+      "condiciones": [
+        "Se requiere latitud y longitud y una capa consultable que identifique el tramo exacto",
+        "Clasificar la vía como Red Vial Nacional, Departamental/Regional, Provincial o Urbana/vecinal",
+        "Red Vial Nacional: MTC; Red Vial Departamental/Regional: gobierno regional; Red Vial Provincial: municipalidad provincial; Red Vial Urbana y caminos rurales no incluidos en SINAC: municipalidad distrital, conforme al D.S. 015-2024-MTC",
+        "Verificar posibles convenios de delegación, concesiones o administración específica del tramo antes de recomendar",
+        "Si no existe una coincidencia única o el servicio no permite consultar atributos del tramo, abstenerse"
+      ],
+      "fundamento": "D.S. N.° 015-2024-MTC, Reglamento de Jerarquización Vial, artículo 6.3, y modificación del artículo 4.2 del Reglamento Nacional de Gestión de Infraestructura Vial.",
+      "fuente": "https://busquedas.elperuano.pe/dispositivo/NL/2325194-1",
+      "fuente_secundaria": "https://www.geoidep.gob.pe/catalogo-nacional-de-servicios-web/servicio-de-visualizacion-wms"
+    },
+    {
+      "categoria": "Tránsito y transporte",
+      "entidad": "Pendiente de clasificar por tipo de incidente",
+      "habilitada": false,
+      "condiciones": [
+        "Separar transporte público urbano (ATU), tránsito y señalización local, vías metropolitanas y carreteras nacionales"
+      ],
+      "fundamento": "La ATU tiene ámbito Lima-Callao para el sistema de transporte terrestre urbano de personas; no todos los incidentes de tránsito pertenecen a ATU.",
+      "fuente": "https://www.leyes.congreso.gob.pe/documentos/2016_2021/adlp/normas_legales/30900_ley.pdf"
+    }
+  ],
+  "regla_general": "Solo se recomienda una entidad pública cuando la competencia y el territorio están verificados. Si faltan datos, hay ambigüedad, una categoría no está habilitada o falla un servicio oficial, se propone el destino interno revision_competencia; este destino no se presenta como institución pública externa."
+}
