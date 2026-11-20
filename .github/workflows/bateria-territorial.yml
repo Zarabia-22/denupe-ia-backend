@@ -1,0 +1,30 @@
+name: Bateria territorial DenuPe
+
+on:
+  push:
+    branches:
+      - test/bateria-territorial-1893x8
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - "app/**"
+      - "tests/**"
+      - "requirements*.txt"
+      - ".github/workflows/bateria-territorial.yml"
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Instalar dependencias
+        run: pip install -r requirements-dev.txt
+      - name: Ejecutar batería completa
+        run: python -m pytest -q
