@@ -29,9 +29,11 @@ class SugerenciaSalida(BaseModel):
 class EntidadEntrada(BaseModel):
     model_config = ConfigDict(extra="forbid")
     categoria: str = Field(min_length=2, max_length=80)
-    departamento: str = Field(min_length=2, max_length=80)
-    provincia: str = Field(min_length=2, max_length=80)
-    distrito: str = Field(min_length=2, max_length=80)
+    # Son metadatos informativos del cliente. La autoridad territorial real
+    # siempre se obtiene de las coordenadas GPS en el backend.
+    departamento: str | None = Field(default=None, min_length=2, max_length=80)
+    provincia: str | None = Field(default=None, min_length=2, max_length=80)
+    distrito: str | None = Field(default=None, min_length=2, max_length=80)
     titulo: str = Field(min_length=5, max_length=100)
     descripcion: str = Field(min_length=10, max_length=500)
     latitud: float | None = Field(default=None, ge=-90, le=90)
@@ -39,7 +41,9 @@ class EntidadEntrada(BaseModel):
 
     @field_validator("categoria", "departamento", "provincia", "distrito", "titulo", "descripcion")
     @classmethod
-    def normalizar_textos(cls, value: str) -> str:
+    def normalizar_textos(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         value = value.strip()
         if not value:
             raise ValueError("El campo no puede contener únicamente espacios")
