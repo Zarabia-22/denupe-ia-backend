@@ -1,5 +1,6 @@
 """Recomendación de entidades con catálogo local y jurisdicción PNP geoespacial."""
 import json
+from concurrent.futures import ThreadPoolExecutor
 import os
 import re
 import unicodedata
@@ -778,14 +779,21 @@ def listar_entidades_disponibles(
     # Las instituciones que dependen del punto GPS se resuelven al cargar
     # el catálogo completo, sin condicionarlas a la categoría de la denuncia.
     if latitud is not None and longitud is not None:
-        for resolver in (_sugerir_comisaria_por_punto, _sugerir_concesionaria_electrica):
-            try:
-                salida = resolver(entrada)
-                if salida.sugerida and salida.entidad is not None:
-                    item = salida.entidad.model_dump() if hasattr(salida.entidad, "model_dump") else dict(salida.entidad)
-                    agregar(item)
-            except (RuntimeError, ValueError):
-                continue
+        # Las dos fuentes geográficas se consultan en paralelo para que el
+        # catálogo no sume secuencialmente sus tiempos máximos de espera.
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [
+                executor.submit(_sugerir_comisaria_por_punto, entrada),
+                executor.submit(_sugerir_concesionaria_electrica, entrada),
+            ]
+            for future in futures:
+                try:
+                    salida = future.result()
+                    if salida.sugerida and salida.entidad is not None:
+                        item = salida.entidad.model_dump() if hasattr(salida.entidad, "model_dump") else dict(salida.entidad)
+                        agregar(item)
+                except (RuntimeError, ValueError):
+                    continue
 
     # Se agregan solo dentro de su ámbito territorial documentado.
     for resolver in (
