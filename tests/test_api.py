@@ -210,23 +210,30 @@ def test_entidades_disponibles_no_ofrece_revision_sin_gps():
     assert response.status_code == 422
 
 
-def test_entidades_disponibles_consulta_matriz_tras_resolver_gps(monkeypatch):
+def test_entidades_disponibles_devuelve_todas_sin_requerir_categoria(monkeypatch):
     from app import main
+
     monkeypatch.setattr(main, "resolver_distrito_por_punto", lambda lat, lon: {
         "ubigeo": "150122", "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
     })
-    monkeypatch.setattr(main, "consultar_resolutor_categoria", lambda ubigeo, codigo: {
-        "requiere_gps": True, "asignar_solo_tras_gps": True,
-    })
-    monkeypatch.setattr(main, "listar_entidades_disponibles", lambda *args: [{
-        "id": "mun-150122", "nombre": "Municipalidad Distrital de Miraflores",
-        "tipo": "municipalidad_distrital",
-        "ambito": {"departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores"},
-    }])
+    monkeypatch.setattr(main, "listar_entidades_disponibles", lambda *args: [
+        {
+            "id": "mun-150122", "nombre": "Municipalidad Distrital de Miraflores",
+            "tipo": "municipalidad_distrital",
+            "ambito": {"departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores"},
+        },
+        {
+            "id": "sedapal-lima-callao", "nombre": "SEDAPAL",
+            "tipo": "empresa_saneamiento",
+            "ambito": {"departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores"},
+        },
+    ])
     with TestClient(app) as cliente:
         response = cliente.get("/api/entidades/disponibles", params={
-            "categoria": "Limpieza y residuos",
             "latitud": -12.12, "longitud": -77.03,
         })
     assert response.status_code == 200
-    assert response.json()["entidades"][0]["ambito"]["distrito"] == "Miraflores"
+    entidades = response.json()["entidades"]
+    assert len(entidades) == 2
+    assert {item["id"] for item in entidades} == {"mun-150122", "sedapal-lima-callao"}
+    assert "sin filtrar" in response.json()["motivo"]
