@@ -529,25 +529,23 @@ def test_un_resultado_sin_codigo_no_se_descarta_al_resolver_jurisdiccion(monkeyp
     assert salida.entidad.tipo == "revision_competencia"
 
 
-def test_listar_entidades_disponibles_devuelve_municipalidad_por_categoria_y_territorio():
+def test_listar_entidades_disponibles_muestra_catalogo_completo_sin_filtrar_categoria():
     from app.entidades import listar_entidades_disponibles
 
-    items = listar_entidades_disponibles(
+    limpieza = listar_entidades_disponibles(
         "Limpieza y residuos", "Lima", "Lima", "Miraflores"
     )
-    assert len(items) == 1
-    assert items[0]["id"] == "mun-150122"
-    assert items[0]["tipo"] == "municipalidad_distrital"
-
-
-def test_listar_entidades_disponibles_ofrece_revision_si_no_hay_competencia_habilitada():
-    from app.entidades import listar_entidades_disponibles
-
-    items = listar_entidades_disponibles(
+    infraestructura = listar_entidades_disponibles(
         "Vialidad e infraestructura", "Lima", "Lima", "Miraflores"
     )
-    assert len(items) == 1
-    assert items[0]["tipo"] == "revision_competencia"
+    ids_limpieza = {item["id"] for item in limpieza}
+    ids_infraestructura = {item["id"] for item in infraestructura}
+
+    assert ids_limpieza == ids_infraestructura
+    assert "mun-150122" in ids_limpieza
+    assert "sedapal-lima-callao" in ids_limpieza
+    assert "atu-lima-callao" in ids_limpieza
+    assert "revision-competencia" not in ids_limpieza
 
 
 def test_listar_entidades_disponibles_ofrece_revision_para_distrito_no_catalogado():
@@ -611,15 +609,16 @@ def test_agua_saneamiento_se_abstiene_si_el_texto_no_identifica_red():
     assert salida.entidad.tipo == "revision_competencia"
 
 
-def test_catalogo_disponible_incluye_sedapal_para_agua_en_lima():
+def test_catalogo_completo_incluye_sedapal_y_otras_entidades_del_distrito():
     from app.entidades import listar_entidades_disponibles
 
     items = listar_entidades_disponibles(
         "Agua y saneamiento", "Lima", "Lima", "Miraflores"
     )
-    assert len(items) == 1
-    assert items[0]["id"] == "sedapal-lima-callao"
-    assert items[0]["tipo"] == "empresa_saneamiento"
+    por_id = {item["id"]: item for item in items}
+    assert por_id["sedapal-lima-callao"]["tipo"] == "empresa_saneamiento"
+    assert por_id["mun-150122"]["tipo"] == "municipalidad_distrital"
+    assert "atu-lima-callao" in por_id
 
 
 def test_agua_saneamiento_acepta_redaccion_coloquial():
@@ -649,7 +648,10 @@ def test_catalogo_sedapal_cubre_los_50_distritos_registrados():
             item["provincia"],
             item["distrito"],
         )
-        assert [entity["id"] for entity in resultado] == ["sedapal-lima-callao"]
+        ids = {entity["id"] for entity in resultado}
+        assert "sedapal-lima-callao" in ids
+        assert any(entity["tipo"] in {"municipalidad_distrital", "municipalidad_provincial"} for entity in resultado)
+        assert "atu-lima-callao" in ids
 
 
 

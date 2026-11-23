@@ -1,5 +1,6 @@
 """Recomendación de entidades con catálogo local y jurisdicción PNP geoespacial."""
 import json
+from concurrent.futures import ThreadPoolExecutor
 import os
 import re
 import unicodedata
@@ -696,41 +697,61 @@ def sugerir_entidad(entrada: EntidadEntrada) -> EntidadSalida:
 
 
 def listar_entidades_disponibles(
-    categoria: str,
+    categoria: str | None,
     departamento: str,
     provincia: str,
     distrito: str,
     latitud: float | None = None,
     longitud: float | None = None,
 ) -> list[dict]:
-    """Devuelve entidades verificadas o revisión interna cuando no hay coincidencia.
+    """Devuelve todas las entidades registradas para el distrito, sin filtrar por categoría.
 
-    No inventa instituciones: los organismos públicos se filtran por catálogo y
-    competencia, y las entidades geoespaciales requieren una coincidencia única.
-    Si no hay una opción externa verificable, ofrece la bandeja interna de revisión.
+    El parámetro categoria se conserva por compatibilidad con clientes antiguos,
+    pero deliberadamente no interviene en la consulta. La recomendación específica
+    se realiza exclusivamente en /api/ia/sugerir-entidad cuando la persona la solicita.
     """
-    cat = normalizar(categoria)
     dep = normalizar(departamento)
     prov = normalizar(provincia)
     dis = normalizar(distrito)
     resultados: list[dict] = []
 
-    for registro in cargar_directorio():
-        if not registro.get("verificado_nombre") or not registro.get("verificado_competencias"):
-            continue
-        if (
-            normalizar(registro.get("departamento", "")) != dep
-            or normalizar(registro.get("provincia", "")) != prov
-            or normalizar(registro.get("distrito", "")) != dis
-        ):
-            continue
-        categorias = {
-            normalizar(item)
-            for item in registro.get("categorias_habilitadas", [])
-        }
-        if cat not in categorias:
-            continue
-        resultados.append({
+    registros_distrito = [
+        registro for registro in cargar_directorio()
+        if registro.get("verificado_nombre") is True
+        and normalizar(registro.get("departamento", "")) == dep
+        and normalizar(registro.get("provincia", "")) == prov
+        and normalizar(registro.get("distrito", "")) == dis
+    ]
+
+    if len([
+        registro for registro in registros_distrito
+        if registro.get("tipo") in {"municipalidad_distrital", "municipalidad_provincial"}
+    ]) != 1:
+        entrada = EntidadEntrada(
+            categoria=categoria or "Consulta general",
+            departamento=departamento,
+            provincia=provincia,
+            distrito=distrito,
+            titulo="Consulta manual de instituciones",
+            descripcion="Consulta de entidades registradas para el distrito.",
+            latitud=latitud,
+            longitud=longitud,
+        )
+        revision = _sugerir_revision_competencia(
+            entrada,
+            "No existe un registro territorial único y verificado para este distrito.",
+        )
+        item = revision.entidad.model_dump() if hasattr(revision.entidad, "model_dump") else dict(revision.entidad)
+        return [item]
+
+    def agregar(item: dict | None) -> None:
+        if item and not any(actual["id"] == item.get("id") for actual in resultados):
+            resultados.append(item)
+
+    # Todas las instituciones verificadas por nombre del distrito, aunque sus
+    # categorías habilitadas no coincidan con la denuncia actual.
+    for registro in registros_distrito:
+        agregar({
             "id": registro["id"],
             "nombre": registro["nombre"],
             "tipo": registro["tipo"],
@@ -744,40 +765,55 @@ def listar_entidades_disponibles(
             },
         })
 
-    # Instituciones cuya competencia depende del punto GPS, no solo del distrito.
     entrada = EntidadEntrada(
-        categoria=categoria,
+        categoria=categoria or "Consulta general",
         departamento=departamento,
         provincia=provincia,
         distrito=distrito,
-        titulo="Consulta manual de institución competente",
-        descripcion="Consulta manual del catálogo de instituciones disponibles.",
+        titulo="Consulta manual de instituciones",
+        descripcion="Consulta de todas las entidades registradas para el distrito.",
         latitud=latitud,
         longitud=longitud,
     )
-    resultado_geografico = None
-    if cat in {"seguridad ciudadana", "seguridad ciudadana delitos", "delitos", "robo", "asalto", "violencia", "actividad sospechosa"}:
-        resultado_geografico = _sugerir_comisaria_por_punto(entrada)
-    elif cat == "alumbrado publico":
-        resultado_geografico = _sugerir_concesionaria_electrica(entrada)
-    elif cat == "agua y saneamiento":
-        # El endpoint de catálogo no recibe título ni descripción; la competencia
-        # territorial se lista por categoría y ámbito, y el POST valida el texto.
-        resultado_geografico = _sugerir_sedapal(entrada, exigir_senal_textual=False)
-    elif cat == "transporte publico urbano de pasajeros":
-        resultado_geografico = _sugerir_atu(entrada)
 
-    if resultado_geografico and resultado_geografico.sugerida and resultado_geografico.entidad:
-        item = resultado_geografico.entidad.model_dump() if hasattr(resultado_geografico.entidad, "model_dump") else dict(resultado_geografico.entidad)
-        if not any(actual["id"] == item["id"] for actual in resultados):
-            resultados.append(item)
+    # Las instituciones que dependen del punto GPS se resuelven al cargar
+    # el catálogo completo, sin condicionarlas a la categoría de la denuncia.
+    if latitud is not None and longitud is not None:
+        # Las dos fuentes geográficas se consultan en paralelo para que el
+        # catálogo no sume secuencialmente sus tiempos máximos de espera.
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [
+                executor.submit(_sugerir_comisaria_por_punto, entrada),
+                executor.submit(_sugerir_concesionaria_electrica, entrada),
+            ]
+            for future in futures:
+                try:
+                    salida = future.result()
+                    if salida.sugerida and salida.entidad is not None:
+                        item = salida.entidad.model_dump() if hasattr(salida.entidad, "model_dump") else dict(salida.entidad)
+                        agregar(item)
+                except (RuntimeError, ValueError):
+                    continue
+
+    # Se agregan solo dentro de su ámbito territorial documentado.
+    for resolver in (
+        lambda: _sugerir_sedapal(entrada, exigir_senal_textual=False),
+        lambda: _sugerir_atu(entrada),
+    ):
+        try:
+            salida = resolver()
+            if salida.sugerida and salida.entidad is not None:
+                item = salida.entidad.model_dump() if hasattr(salida.entidad, "model_dump") else dict(salida.entidad)
+                agregar(item)
+        except (RuntimeError, ValueError):
+            continue
 
     if not resultados:
         revision = _sugerir_revision_competencia(
             entrada,
-            "El catálogo no contiene una institución pública habilitada para la categoría y ubicación solicitadas.",
+            "No hay instituciones públicas concretas registradas para este distrito.",
         )
         item = revision.entidad.model_dump() if hasattr(revision.entidad, "model_dump") else dict(revision.entidad)
-        resultados.append(item)
+        agregar(item)
 
     return sorted(resultados, key=lambda item: normalizar(item["nombre"]))

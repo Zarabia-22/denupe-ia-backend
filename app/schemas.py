@@ -75,6 +75,6 @@ class EntidadSalida(BaseModel):
     motivo: str
 
 class EntidadesDisponiblesSalida(BaseModel):
-    """Destinos de derivación: entidades verificadas o revisión interna."""
+    """Catálogo completo de entidades registradas para el distrito detectado por GPS."""
     entidades: list[EntidadPublica] = Field(default_factory=list)
-    motivo: str = "Las instituciones se filtran por categoría y jurisdicción."
+    motivo: str = "Se muestran las entidades registradas para el distrito, sin filtrar por categoría."

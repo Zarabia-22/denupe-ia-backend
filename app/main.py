@@ -155,42 +155,36 @@ def predecir_entidad(denuncia: EntidadEntrada) -> EntidadSalida:
     tags=["Catálogo de instituciones"],
 )
 def entidades_disponibles(
-    categoria: str = Query(min_length=2, max_length=80),
+    latitud: float | None = Query(default=None, ge=-90, le=90),
+    longitud: float | None = Query(default=None, ge=-180, le=180),
+    # Parámetros antiguos aceptados temporalmente, pero no se usan para filtrar.
+    categoria: str | None = Query(default=None, min_length=2, max_length=80),
     departamento: str | None = Query(default=None, min_length=2, max_length=80),
     provincia: str | None = Query(default=None, min_length=2, max_length=80),
     distrito: str | None = Query(default=None, min_length=2, max_length=80),
-    latitud: float | None = Query(default=None, ge=-90, le=90),
-    longitud: float | None = Query(default=None, ge=-180, le=180),
 ) -> EntidadesDisponiblesSalida:
-    """Lista entidades verificadas o el destino interno de revisión como respaldo."""
+    """Lista todas las entidades registradas en el distrito resuelto desde GPS."""
     if (latitud is None) != (longitud is None):
         raise HTTPException(status_code=422, detail="latitud y longitud deben enviarse juntas")
     if latitud is None or longitud is None:
         raise HTTPException(status_code=422, detail="La ubicación GPS es obligatoria para consultar entidades.")
     try:
         territorio = resolver_distrito_por_punto(latitud, longitud)
-        codigo_por_nombre = {
-            "alumbrado público": "alumbrado", "seguridad ciudadana": "seguridad",
-            "limpieza y residuos": "limpieza", "agua y saneamiento": "agua",
-            "tránsito y transporte": "transito", "parques y áreas verdes": "areas_verdes",
-            "vialidad e infraestructura": "infraestructura", "otros": "otros",
-        }
-        codigo = codigo_por_nombre.get(categoria.casefold().strip())
-        if not codigo:
-            raise HTTPException(status_code=422, detail="Categoría no reconocida.")
-        consultar_resolutor_categoria(territorio["ubigeo"], codigo)
-    except InsForgeCatalogError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=422, detail=f"No se pudo resolver el distrito por GPS: {exc}") from exc
-    departamento = territorio["departamento"]
-    provincia = territorio["provincia"]
-    distrito = territorio["distrito"]
-    items = listar_entidades_disponibles(categoria, departamento, provincia, distrito, latitud, longitud)
+
+    items = listar_entidades_disponibles(
+        categoria,
+        territorio["departamento"],
+        territorio["provincia"],
+        territorio["distrito"],
+        latitud,
+        longitud,
+    )
     tiene_revision = any(item.get("tipo") == "revision_competencia" for item in items)
     motivo = (
-        "No se identificó una institución pública específica. Puedes asignar la denuncia a la bandeja interna de revisión de competencia."
+        "No hay instituciones públicas concretas registradas para este distrito. Se conserva la bandeja interna de revisión de competencia."
         if tiene_revision else
-        "Selecciona una institución con competencia validada para esta denuncia."
+        "Se muestran todas las entidades registradas para el distrito, sin filtrar por la categoría de la denuncia."
     )
     return EntidadesDisponiblesSalida(entidades=items, motivo=motivo)
