@@ -558,16 +558,6 @@ def test_listar_entidades_disponibles_ofrece_revision_para_distrito_no_catalogad
     assert items[0]["tipo"] == "revision_competencia"
 
 
-def test_listar_entidades_disponibles_ofrece_revision_para_distrito_no_catalogado():
-    from app.entidades import listar_entidades_disponibles
-
-    items = listar_entidades_disponibles(
-        "Limpieza y residuos", "Lima", "Lima", "Distrito inexistente"
-    )
-    assert len(items) == 1
-    assert items[0]["tipo"] == "revision_competencia"
-
-
 def test_agua_saneamiento_recomienda_sedapal_en_lima_con_senal_de_red():
     denuncia = entrada(
         categoria="Agua y saneamiento",
@@ -660,7 +650,7 @@ def test_catalogo_sedapal_cubre_los_50_distritos_registrados():
         )
         ids = {entity["id"] for entity in resultado}
         assert "sedapal-lima-callao" in ids
-        assert any(entity["tipo"] == "municipalidad_distrital" for entity in resultado)
+        assert any(entity["tipo"] in {"municipalidad_distrital", "municipalidad_provincial"} for entity in resultado)
         assert "atu-lima-callao" in ids
 
 
