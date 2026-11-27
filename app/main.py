@@ -102,7 +102,7 @@ def resolver_territorio(
     try:
         territorio = resolver_distrito_por_punto(latitud, longitud)
         matriz = consultar_matriz_distrital(territorio["ubigeo"])
-    except InsForgeCatalogError as exc:
+    except BackendCatalogError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -132,7 +132,7 @@ def predecir_entidad(denuncia: EntidadEntrada) -> EntidadSalida:
         if not codigo:
             return EntidadSalida(sugerida=False, entidad=None, motivo="Categoría no reconocida por el catálogo territorial.")
         regla = consultar_resolutor_categoria(territorio["ubigeo"], codigo)
-    except InsForgeCatalogError as exc:
+    except BackendCatalogError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except RuntimeError as exc:
         return EntidadSalida(sugerida=False, entidad=None, motivo=f"No se pudo validar el punto GPS: {exc}")
