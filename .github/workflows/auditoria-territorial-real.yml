@@ -1,10 +1,6 @@
-name: Auditoria real nacional InsForge
+name: Auditoría territorial nacional en Render
 
 on:
-  push:
-    branches:
-      - develop
-      - test/auditoria-real-nacional
   pull_request:
     branches:
       - develop
@@ -31,16 +27,15 @@ jobs:
       - name: Instalar dependencias
         run: pip install -r requirements-dev.txt
       - name: Ejecutar pruebas unitarias
-        run: python -m pytest -q tests/test_auditoria_territorial_real.py
+        run: python -m pytest -q
 
-  auditoria-insforge:
+  auditoria-render:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      INSFORGE_URL: ${{ secrets.INSFORGE_URL }}
-      INSFORGE_API_KEY: ${{ secrets.INSFORGE_API_KEY }}
-      INSFORGE_TIMEOUT_SECONDS: "15"
-      AUDIT_WORKERS: "8"
+      DENUPE_BACKEND_TIMEOUT_SECONDS: "15"
+      AUDIT_WORKERS: "4"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -49,17 +44,13 @@ jobs:
           cache: pip
       - name: Instalar dependencias
         run: pip install -r requirements-dev.txt
-      - name: Verificar configuración segura
-        run: |
-          test -n "$INSFORGE_URL" || (echo "::error::Falta el secreto INSFORGE_URL"; exit 1)
-          test -n "$INSFORGE_API_KEY" || (echo "::error::Falta el secreto INSFORGE_API_KEY"; exit 1)
       - name: Consultar matriz real de los UBIGEO distritales
         run: python -m scripts.auditoria_territorial_real
       - name: Publicar informe JSON
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: auditoria-territorial-real
+          name: auditoria-territorial-render
           path: artifacts/auditoria-territorial-real.json
           if-no-files-found: warn
           retention-days: 30
