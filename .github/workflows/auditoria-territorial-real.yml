@@ -1,9 +1,16 @@
 name: Auditoría territorial nacional en Render
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "app/backend_catalog.py"
+      - "app/main.py"
+      - ".github/workflows/auditoria-territorial-real.yml"
   pull_request:
     branches:
-      - develop
+      - main
     paths:
       - "app/**"
       - "scripts/auditoria_territorial_real.py"
@@ -17,6 +24,7 @@ permissions:
 
 jobs:
   pruebas-unitarias:
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +36,40 @@ jobs:
         run: pip install -r requirements-dev.txt
       - name: Ejecutar pruebas unitarias
         run: python -m pytest -q
+
+  smoke-backend-catalog:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DENUPE_BACKEND_BASE_URL: https://denupe-backend.onrender.com
+    steps:
+      - name: Esperar y consultar el catálogo central
+        shell: bash
+        run: |
+          for attempt in {1..8}; do
+            status=$(curl --silent --show-error --output catalog.json --write-out '%{http_code}' --max-time 20 "$DENUPE_BACKEND_BASE_URL/api/v1/catalogos/matriz-territorial?ubigeo=150122" || true)
+            if [[ "$status" == "200" ]]; then
+              break
+            fi
+            echo "Intento $attempt: HTTP $status; reintentando..."
+            sleep 10
+          done
+          test "$status" = "200"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          rows = json.loads(Path("catalog.json").read_text(encoding="utf-8"))
+          expected = {
+              "alumbrado", "seguridad", "limpieza", "agua",
+              "transito", "areas_verdes", "infraestructura", "otros",
+          }
+          assert len(rows) == 8, f"Se esperaban 8 reglas y llegaron {len(rows)}"
+          assert {row.get("categoria_code") for row in rows} == expected
+          assert all(row.get("entidad_resolucion_id") and row.get("entidad_nombre") for row in rows)
+          print("Catálogo central correcto: 8 categorías y resolutores presentes para UBIGEO 150122.")
+          PY
 
   auditoria-render:
     if: github.event_name == 'workflow_dispatch'
