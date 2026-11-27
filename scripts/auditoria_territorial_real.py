@@ -131,7 +131,8 @@ def main() -> int:
     informe = {
         "generado_en_utc": datetime.now(timezone.utc).isoformat(),
         "fuente_ubigeos": UBIGEO_CSV_URL,
-        "modo": "solo_lectura",\n        "backend_catalogo": backend_url,
+        "modo": "solo_lectura",
+        "backend_catalogo": backend_url,
         "ubigeos_fuente": len(distritos),
         "ubigeos_consultados_con_respuesta": len(resultados),
         "ubigeos_con_error_consulta": len(fallos_consulta),
