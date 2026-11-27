@@ -71,6 +71,33 @@ jobs:
           print("Catálogo central correcto: 8 categorías y resolutores presentes para UBIGEO 150122.")
           PY
 
+      - name: Verificar que el microservicio IA resuelve el catálogo mediante el backend principal
+        env:
+          DENUPE_IA_BASE_URL: https://denupe-ia-backend.onrender.com
+        shell: bash
+        run: |
+          for attempt in {1..8}; do
+            status=$(curl --silent --show-error --output ai-catalog.json --write-out '%{http_code}' --max-time 45 "$DENUPE_IA_BASE_URL/api/territorio/catalogo-distrital?latitud=-12.12&longitud=-77.03" || true)
+            if [[ "$status" == "200" ]]; then
+              break
+            fi
+            echo "Intento IA $attempt: HTTP $status; reintentando..."
+            sleep 10
+          done
+          test "$status" = "200"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          result = json.loads(Path("ai-catalog.json").read_text(encoding="utf-8"))
+          rows = result.get("categorias", [])
+          assert result.get("ubigeo") == "150122", f"UBIGEO inesperado: {result.get('ubigeo')}"
+          assert result.get("total_categorias") == 8, f"Total inesperado: {result.get('total_categorias')}"
+          assert len(rows) == 8
+          assert all(row.get("entidad_resolucion_id") and row.get("entidad_nombre") for row in rows)
+          print("Microservicio IA correcto: resolvió GPS, UBIGEO 150122 y ocho resolutores desde Render PostgreSQL.")
+          PY
+
   auditoria-render:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
