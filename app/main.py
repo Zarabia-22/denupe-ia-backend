@@ -181,7 +181,10 @@ def entidades_disponibles(
         codigo = codigo_por_nombre.get(categoria.casefold().strip())
         if not codigo:
             raise HTTPException(status_code=422, detail="Categoría no reconocida.")
-        consultar_resolutor_categoria(territorio["ubigeo"], codigo)
+        matriz = consultar_matriz_distrital(territorio["ubigeo"])
+        reglas = [fila for fila in matriz if fila.get("categoria_code") == codigo]
+        if len(reglas) != 1:
+            raise BackendCatalogError("No existe un resolutor único para el distrito y la categoría.")
     except BackendCatalogError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except RuntimeError as exc:
