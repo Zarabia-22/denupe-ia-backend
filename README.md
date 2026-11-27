@@ -53,7 +53,7 @@ El enlace corresponde al servicio de pruebas HU-IA02; no debe interpretarse como
 ### Resolución territorial y catálogo
 - Resuelve el distrito desde coordenadas GPS mediante intersección con límites geográficos.
 - Obtiene departamento, provincia, distrito y UBIGEO a partir del punto; no confía en los datos territoriales escritos por el cliente como fuente de autoridad.
-- Consulta en InsForge la matriz de ocho categorías por distrito y el resolutor sectorial asociado.
+- Consulta en el backend principal DenuPe la matriz PostgreSQL de ocho categorías por UBIGEO y el resolutor sectorial asociado.
 - Expone el catálogo distrital y las entidades disponibles para una categoría y ubicación.
 
 ### Recomendación de entidades
@@ -94,7 +94,7 @@ Los códigos deben coincidir con el catálogo usado por la aplicación y la base
 | scikit-learn | TF-IDF y clasificación multiclase. |
 | NumPy / SciPy | Operaciones numéricas y soporte científico. |
 | Joblib | Carga de los artefactos del modelo. |
-| InsForge / PostgreSQL | Catálogo territorial y funciones RPC. |
+| Backend principal DenuPe / PostgreSQL Render | Catálogo territorial consultado mediante API REST. |
 | Servicios geográficos oficiales | Resolución espacial de límites y jurisdicciones. |
 | pytest / HTTPX | Pruebas unitarias y de integración. |
 | Docker | Construcción de la imagen del servicio. |
@@ -110,11 +110,11 @@ Para ejecutar el proyecto localmente se necesita:
 - Python **3.11**.
 - Git.
 - pip y soporte para entornos virtuales de Python.
-- Acceso a un proyecto InsForge para probar las funciones territoriales.
-- Credencial administrativa de InsForge disponible como secreto del backend, no en la aplicación Flutter.
+- Acceso al backend principal de Render para probar el endpoint territorial REST.
+- El catálogo del backend principal es de solo lectura y no requiere una credencial administrativa desde este servicio.
 - Conexión a internet para consultar los servicios geográficos externos.
 
-Para ejecutar el contenedor también se necesita Docker. No es necesario configurar InsForge para ejecutar únicamente el endpoint de clasificación de categorías; sí es necesario para los endpoints que consultan la matriz territorial.
+Para ejecutar el contenedor también se necesita Docker. La URL del backend principal tiene un valor predeterminado de producción; puede configurarse mediante `DENUPE_BACKEND_BASE_URL` para entornos alternativos.
 
 ## 7. Instalación y configuración
 
@@ -162,9 +162,9 @@ Crea un archivo `.env` en la raíz del proyecto para tu entorno local. No lo sub
 
 | Variable | Descripción |
 |---|---|
-| `INSFORGE_URL` | URL base del proyecto InsForge. |
-| `INSFORGE_API_KEY` | Clave administrativa usada exclusivamente desde el servidor. |
-| `INSFORGE_TIMEOUT_SECONDS` | Tiempo máximo de espera para RPC de InsForge; valor predeterminado: 8 segundos. |
+| `DENUPE_BACKEND_BASE_URL` | URL base del backend principal DenuPe. |
+| `DENUPE_BACKEND_TIMEOUT_SECONDS` | Tiempo máximo de espera para consultar el catálogo; valor predeterminado: 12 segundos. |
+
 | `DISTRITOS_MAPSERVER_URL` | URL del servicio cartográfico de límites distritales, si se desea sobrescribir el valor predeterminado. |
 | `DISTRITOS_TIMEOUT_SECONDS` | Tiempo máximo de espera de la consulta geográfica distrital. |
 | `PNP_MAPSERVER_URL` | URL base del servicio geográfico PNP, si se configura. |
@@ -175,7 +175,7 @@ Crea un archivo `.env` en la raíz del proyecto para tu entorno local. No lo sub
 | `RATE_LIMIT_PER_MINUTE` | Máximo de solicitudes por IP y minuto; predeterminado: 120 por proceso. |
 | `CORS_ORIGINS` | Orígenes web permitidos, separados por comas. |
 
-Configura únicamente las variables necesarias para los servicios que vayas a utilizar. Los valores predeterminados de las URLs geográficas están definidos por el código. **Nunca publiques `INSFORGE_API_KEY`, no la incluyas en Flutter y no la escribas en capturas, logs o ejemplos.**
+Configura únicamente las variables necesarias para los servicios que vayas a utilizar. Los valores predeterminados de las URLs geográficas están definidos por el código. El microservicio no almacena credenciales del catálogo territorial; la consulta se realiza por HTTPS al backend principal.
 
 ### 7.5 Ejecutar el servidor
 
@@ -234,7 +234,7 @@ Los valores numéricos son ejemplos de formato, no una predicción garantizada. 
 curl "http://127.0.0.1:8000/api/territorio/catalogo-distrital?latitud=-12.12&longitud=-77.03"
 ```
 
-La ubicación se utiliza para identificar el polígono distrital y obtener el UBIGEO. El servicio consulta la matriz de categorías de ese distrito en InsForge.
+La ubicación se utiliza para identificar el polígono distrital y obtener el UBIGEO. El servicio consulta la matriz de categorías de ese distrito en PostgreSQL del backend principal.
 
 ### 8.4 Recomendar una entidad
 
@@ -267,7 +267,7 @@ El distrito, provincia y departamento efectivos se resuelven desde el GPS. La re
 | `POST` | `/api/ia/sugerir-entidad` | Recomendación de entidad con GPS. |
 | `GET` | `/api/entidades/disponibles` | Listado de opciones para categoría y ubicación. |
 
-Códigos HTTP relevantes: `200` solicitud procesada (puede incluir abstención), `413` cuerpo demasiado grande, `422` datos inválidos o punto no resoluble, `429` límite de solicitudes excedido, `503` catálogo InsForge no disponible y `500` error interno.
+Códigos HTTP relevantes: `200` solicitud procesada (puede incluir abstención), `413` cuerpo demasiado grande, `422` datos inválidos o punto no resoluble, `429` límite de solicitudes excedido, `503` catálogo territorial del backend principal no disponible y `500` error interno.
 
 ## 9. Roadmap y limitaciones conocidas
 
@@ -283,7 +283,7 @@ Códigos HTTP relevantes: `200` solicitud procesada (puede incluir abstención),
 ### Limitaciones conocidas
 - El entrenamiento actual utiliza **2.400 ejemplos sintéticos** (300 por categoría), no denuncias reales.
 - Las métricas del benchmark sintético no demuestran la precisión del modelo en producción. Las probabilidades de `predict_proba` no están calibradas.
-- La matriz de InsForge relaciona ocho categorías con resolutores sectoriales por distrito, pero esa relación no prueba por sí sola qué institución concreta debe recibir cada denuncia.
+- La matriz territorial relaciona ocho categorías con resolutores sectoriales por distrito, pero esa relación no prueba por sí sola qué institución concreta debe recibir cada denuncia.
 - El directorio municipal local documentado tiene cobertura inicial de 50 distritos de Lima Metropolitana y Callao. La matriz territorial nacional no equivale a un directorio nacional completo de instituciones concretas.
 - Algunas competencias solo se recomiendan bajo condiciones específicas. Por ejemplo, transporte público urbano de pasajeros se distingue de la categoría genérica de tránsito y transporte; vialidad e infraestructura puede requerir identificar primero la jerarquía y el tramo de la vía.
 - La API no implementa autenticación JWT propia. CORS no es un mecanismo de autenticación y una clave incluida en una aplicación móvil puede extraerse.
@@ -328,7 +328,7 @@ En la rama `main` no se encontró un archivo `LICENSE`. Por tanto, el repositori
        TF-IDF palabras y            Polígono distrital
        caracteres                   + UBIGEO
              |                          |
-       Regresión logística         Catálogo InsForge
+       Regresión logística         Catálogo PostgreSQL Render
              |                     (matriz por categoría)
        Umbrales y abstención             |
              |                     Resolutor sectorial
@@ -347,7 +347,7 @@ En la rama `main` no se encontró un archivo `LICENSE`. Por tanto, el repositori
 | `app/text_processing.py` | Normalización y cobertura del vocabulario. |
 | `app/categorias.py` | Códigos y nombres de las ocho categorías. |
 | `app/entidades.py` | Directorios, resolución territorial y recomendación/listado de entidades. |
-| `app/insforge_catalog.py` | Cliente RPC para el catálogo territorial InsForge. |
+| `app/backend_catalog.py` | Cliente REST para el catálogo territorial PostgreSQL del backend principal. |
 | `app/middleware.py` | Límite de cuerpo, cuota por IP, request ID y cabeceras. |
 | `training/train.py` | Preparación de datos, comparación y entrenamiento del modelo. |
 | `models/` | Modelo, vectorizador y métricas. |
@@ -375,7 +375,7 @@ python -m pytest -q
 
 ### Catálogo territorial y abstención
 
-Para operaciones territoriales, el backend resuelve las coordenadas sobre el servicio de límites distritales, obtiene el UBIGEO y consulta en InsForge las funciones RPC `consultar_matriz_distrital_por_ubigeo` y `consultar_entidades_por_ubigeo`. La matriz debe contener exactamente las ocho categorías. Si faltan credenciales, falla la consulta o la respuesta es incompleta, el servicio falla de forma cerrada.
+Para operaciones territoriales, el backend resuelve las coordenadas sobre el servicio de límites distritales, obtiene el UBIGEO y consulta el endpoint REST `GET /api/v1/catalogos/matriz-territorial` del backend principal. La matriz debe contener exactamente las ocho categorías y un resolutor asociado. Si el backend no responde o la matriz está incompleta, el servicio falla de forma cerrada.
 
 La existencia de un resolutor sectorial no equivale a una institución concreta confirmada. Las reglas locales y las consultas geográficas se aplican con condiciones específicas; ante falta de evidencia, resultados ambiguos o fuentes no disponibles, se conserva la selección manual o se utiliza la bandeja interna de revisión de competencia de DenuPe.
 
@@ -384,7 +384,7 @@ La existencia de un resolutor sectorial no equivale a una institución concreta 
 - El middleware limita el cuerpo HTTP a 16 KiB por defecto y aplica una cuota predeterminada de 120 solicitudes por IP y minuto por proceso.
 - Las respuestas incorporan un identificador de solicitud y cabeceras de seguridad.
 - El backend no registra deliberadamente el título, descripción, coordenadas ni datos personales de la denuncia.
-- La clave administrativa de InsForge debe mantenerse únicamente como secreto del servidor.
+- El microservicio de IA no requiere una clave administrativa para consultar el catálogo central.
 - Los archivos Joblib deben proceder de una fuente confiable, ya que su deserialización puede ejecutar código.
 - Las recomendaciones no sustituyen la revisión humana ni ejecutan una derivación administrativa.
 
