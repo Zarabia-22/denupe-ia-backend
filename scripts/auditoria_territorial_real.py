@@ -1,7 +1,7 @@
-"""Auditoría de solo lectura de la matriz territorial real de InsForge.
+"""Auditoría de solo lectura de la matriz territorial del backend principal.
 
 La lista de UBIGEO se obtiene del CSV territorial 2026 citado por la migración
-de DenuPe. Las consultas usan únicamente la RPC de lectura existente.
+de DenuPe. Las consultas usan únicamente el endpoint REST de lectura.
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.request import urlopen
 
-from app.insforge_catalog import InsForgeCatalogError, _rpc
+from app.backend_catalog import BackendCatalogError, consultar_matriz_distrital
 
 UBIGEO_CSV_URL = (
     "https://raw.githubusercontent.com/Rodasluis/Peru-maps/"
@@ -52,10 +52,7 @@ def cargar_ubigeos(contenido: str) -> list[dict]:
 
 
 def consultar_distrito(distrito: dict) -> dict:
-    filas = _rpc(
-        "consultar_matriz_distrital_por_ubigeo",
-        {"p_ubigeo": distrito["ubigeo"]},
-    )
+    filas = consultar_matriz_distrital(distrito["ubigeo"])
     errores = []
     codigos = [fila.get("categoria_code") for fila in filas]
     if len(filas) != 8:
@@ -97,8 +94,12 @@ def consultar_distrito(distrito: dict) -> dict:
 
 
 def main() -> int:
-    if not os.getenv("INSFORGE_URL") or not os.getenv("INSFORGE_API_KEY"):
-        print("ERROR: faltan INSFORGE_URL / INSFORGE_API_KEY en el entorno seguro.", file=sys.stderr)
+    backend_url = os.getenv(
+        "DENUPE_BACKEND_BASE_URL",
+        "https://denupe-backend.onrender.com",
+    ).strip()
+    if not backend_url.startswith(("https://", "http://")):
+        print("ERROR: DENUPE_BACKEND_BASE_URL debe ser una URL HTTP(S) válida.", file=sys.stderr)
         return 2
 
     with urlopen(UBIGEO_CSV_URL, timeout=30) as response:
@@ -107,14 +108,14 @@ def main() -> int:
     resultados = []
     fallos_rpc = []
 
-    workers = max(1, min(int(os.getenv("AUDIT_WORKERS", "8")), 16))
+    workers = max(1, min(int(os.getenv("AUDIT_WORKERS", "4")), 8))
     with ThreadPoolExecutor(max_workers=workers) as executor:
         futuros = {executor.submit(consultar_distrito, d): d for d in distritos}
         for futuro in as_completed(futuros):
             distrito = futuros[futuro]
             try:
                 resultados.append(futuro.result())
-            except (InsForgeCatalogError, OSError, ValueError, RuntimeError) as exc:
+            except (BackendCatalogError, OSError, ValueError, RuntimeError) as exc:
                 fallos_rpc.append({
                     **distrito,
                     "error": f"{type(exc).__name__}: {exc}",
@@ -130,7 +131,7 @@ def main() -> int:
     informe = {
         "generado_en_utc": datetime.now(timezone.utc).isoformat(),
         "fuente_ubigeos": UBIGEO_CSV_URL,
-        "modo": "solo_lectura",
+        "modo": "solo_lectura",\n        "backend_catalogo": backend_url,
         "ubigeos_fuente": len(distritos),
         "ubigeos_consultados_con_respuesta": len(resultados),
         "ubigeos_con_error_rpc": len(fallos_rpc),
