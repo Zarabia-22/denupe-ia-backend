@@ -756,6 +756,9 @@ def test_catalogo_disponible_usa_distrito_resuelto_por_gps(monkeypatch):
     monkeypatch.setattr(main, "resolver_distrito_por_punto", lambda lat, lon: {
         "ubigeo": "150122", "departamento": "Lima", "provincia": "Lima", "distrito": "Miraflores",
     })
+    monkeypatch.setattr(main, "consultar_matriz_distrital", lambda ubigeo: [
+        {"categoria_code": "limpieza", "entidad_resolucion_id": "municipalidad_local", "entidad_nombre": "Municipalidad local"}
+    ])
     salida = main.entidades_disponibles(
         categoria="Limpieza y residuos",
         departamento="Callao",
