@@ -8,7 +8,7 @@ El backend devuelve **recomendaciones**, no presenta denuncias ni ejecuta una de
 - **Servidor ASGI:** Uvicorn.
 - **Clasificación:** scikit-learn (TF-IDF + regresión logística).
 - **Validación de datos:** Pydantic.
-- **Catálogo territorial:** InsForge (PostgreSQL y funciones RPC).
+- **Catálogo territorial:** PostgreSQL de Render, consultado mediante la API REST del backend principal DenuPe.
 - **Datos geográficos:** servicios cartográficos oficiales consultados desde el backend.
 - **Despliegue:** Docker y Render.
 - **Pruebas:** pytest y HTTPX.
@@ -19,7 +19,7 @@ El backend devuelve **recomendaciones**, no presenta denuncias ni ejecuta una de
 2. Normaliza el texto y analiza sus términos mediante un modelo de clasificación multiclase.
 3. Recomienda una de las ocho categorías de DenuPe cuando la predicción supera los controles de calidad; si no, solicita mantener la selección manual.
 4. Para las operaciones territoriales, recibe coordenadas GPS, resuelve el distrito y obtiene su UBIGEO mediante intersección geográfica.
-5. Consulta en InsForge la matriz de ocho categorías asociada al UBIGEO y recupera el resolutor sectorial de la categoría.
+5. Consulta en el backend principal DenuPe la matriz de ocho categorías asociada al UBIGEO y recupera el resolutor sectorial.
 6. Contrasta la información disponible en los catálogos y servicios geográficos para intentar identificar una institución concreta.
 7. Si la institución no puede confirmarse de forma única, devuelve abstención o mantiene como alternativa la bandeja interna de revisión de competencia de DenuPe.
 
@@ -44,7 +44,7 @@ El backend devuelve **recomendaciones**, no presenta denuncias ni ejecuta una de
        caracteres                  + UBIGEO
              |                          |
              v                          v
-     Regresión logística          Catálogo InsForge
+     Regresión logística          Catálogo PostgreSQL Render
              |                    (matriz de 8 categorías)
              v                          |
      Umbrales y abstención              v
@@ -67,7 +67,7 @@ El backend devuelve **recomendaciones**, no presenta denuncias ni ejecuta una de
 | `app/text_processing.py` | Normaliza el texto y calcula la cobertura del vocabulario del vectorizador. |
 | `app/categorias.py` | Mantiene el catálogo y los códigos de las ocho categorías. |
 | `app/entidades.py` | Contiene la lógica de directorio, resolución territorial y recomendación/listado de entidades. |
-| `app/insforge_catalog.py` | Cliente HTTP del backend para consultar las funciones RPC del catálogo territorial InsForge. |
+| `app/backend_catalog.py` | Cliente REST del backend principal para consultar la matriz territorial PostgreSQL por UBIGEO. |
 | `app/middleware.py` | Protege las solicitudes con límite de tamaño, cuota por IP, identificador de solicitud y cabeceras de seguridad. |
 | `training/train.py` | Valida los datos, separa grupos, compara modelos, elige el umbral y genera los artefactos. |
 | `models/` | Guarda el modelo, el vectorizador y las métricas del entrenamiento. |
@@ -122,17 +122,17 @@ La ubicación escrita por el cliente no se toma como autoridad territorial. Para
 
 La resolución GPS es una identificación operativa del distrito; no constituye una determinación legal de límites territoriales.
 
-### 3.3 Consulta del catálogo territorial en InsForge
+### 3.3 Consulta del catálogo territorial en el backend principal
 
-El módulo `app/insforge_catalog.py` realiza solicitudes HTTP autenticadas desde el servidor a las funciones RPC:
+El módulo `app/backend_catalog.py` realiza solicitudes HTTP autenticadas desde el servidor a las funciones RPC:
 
 - `consultar_matriz_distrital_por_ubigeo(p_ubigeo)`: recupera la matriz del distrito y exige exactamente ocho categorías, una por código.
 - `consultar_entidades_por_ubigeo(p_ubigeo, p_categoria_code)`: recupera el resolutor sectorial relacionado con una categoría y un UBIGEO; exige un único resultado.
 
 Funciones internas:
 
-- `_configuracion()`: valida que existan `INSFORGE_URL` e `INSFORGE_API_KEY` y que la clave tenga el formato administrativo esperado.
-- `_rpc(nombre, argumentos)`: envía la solicitud HTTP a InsForge, aplica timeout y valida la estructura de la respuesta.
+- `_configuracion()`: obtiene `DENUPE_BACKEND_BASE_URL` y `DENUPE_BACKEND_TIMEOUT_SECONDS`; no requiere claves administrativas ni credenciales de InsForge.
+- `_get_catalogo(params)`: consulta el endpoint REST del backend principal, aplica timeout y valida la estructura de la respuesta.
 - `consultar_matriz_distrital(ubigeo)`: valida UBIGEO y la presencia de las ocho categorías.
 - `consultar_resolutor_categoria(ubigeo, categoria_code)`: obtiene una única regla sectorial.
 
@@ -146,9 +146,9 @@ La integración falla de forma cerrada: ante credenciales ausentes, error de red
 - `resolver_distrito_por_punto(latitud, longitud)`: resuelve la ubicación mediante el punto GPS.
 - `catalogo_distrital_por_categoria(...)`: función auxiliar del módulo de entidades para consultar la configuración territorial por categoría.
 
-El endpoint de recomendación de entidad exige GPS. El distrito, provincia y departamento efectivos se sustituyen por los obtenidos desde las coordenadas. Antes de devolver una institución, se comprueba que exista la matriz y el resolutor sectorial de InsForge.
+El endpoint de recomendación de entidad exige GPS. El distrito, provincia y departamento efectivos se sustituyen por los obtenidos desde las coordenadas. Antes de devolver una institución, se comprueba que exista la matriz y el resolutor sectorial en PostgreSQL del backend principal.
 
-**Abstención y revisión humana:** que InsForge relacione una categoría con un resolutor sectorial no demuestra por sí solo qué institución concreta debe recibir una denuncia. Si la evidencia local o geográfica no permite identificar una entidad única, el backend no la presenta como competente. `revision_competencia` es una bandeja interna de DenuPe, no una entidad pública.
+**Abstención y revisión humana:** que la matriz territorial relacione una categoría con un resolutor sectorial no demuestra por sí solo qué institución concreta debe recibir una denuncia. Si la evidencia local o geográfica no permite identificar una entidad única, el backend no la presenta como competente. `revision_competencia` es una bandeja interna de DenuPe, no una entidad pública.
 
 ## 4. API REST
 
@@ -228,7 +228,7 @@ La ubicación GPS determina el distrito efectivo. La respuesta sigue el contrato
 
 - `200`: consulta procesada; la respuesta puede indicar abstención.
 - `422`: parámetros, campos o coordenadas inválidos; también se usa cuando no se puede resolver un punto territorial.
-- `503`: el catálogo InsForge no está configurado o no se pudo consultar.
+- `503`: el catálogo territorial del backend principal no está configurado o no se pudo consultar.
 - `413`: cuerpo HTTP mayor al límite permitido.
 - `429`: se excedió la cuota de solicitudes.
 - `500`: error interno no controlado.
@@ -278,7 +278,7 @@ El entrenamiento actualiza los tres artefactos indicados. El workflow de GitHub 
 | scikit-learn | Vectorización TF-IDF y algoritmos de clasificación. |
 | NumPy / SciPy | Operaciones numéricas y soporte científico de scikit-learn. |
 | Joblib | Serialización y carga de los artefactos entrenados. |
-| InsForge | Catálogo territorial y RPC de matriz/resolutor por UBIGEO. |
+| Backend principal DenuPe | Catálogo territorial PostgreSQL y endpoint REST de matriz/resolutor por UBIGEO. |
 | pytest / HTTPX | Pruebas automatizadas y cliente HTTP de pruebas. |
 | Docker | Empaquetado reproducible del servicio. |
 | Render | Alojamiento del servicio web. |
@@ -291,7 +291,7 @@ Las dependencias de ejecución están fijadas en `requirements.txt`; las herrami
 
 - Python 3.11.
 - Git.
-- Acceso a InsForge para probar los endpoints territoriales y de entidades.
+- Acceso al backend principal de Render para probar los endpoints territoriales y de entidades.
 
 ### Instalación
 
@@ -308,9 +308,9 @@ pip install -r requirements-dev.txt
 
 | Variable | Descripción |
 |---|---|
-| `INSFORGE_URL` | URL base del proyecto InsForge. |
-| `INSFORGE_API_KEY` | Clave administrativa de InsForge. Debe permanecer solo en el servidor. |
-| `INSFORGE_TIMEOUT_SECONDS` | Timeout de RPC InsForge; valor predeterminado: 8 segundos. |
+| `DENUPE_BACKEND_BASE_URL` | URL base del backend principal DenuPe. Valor predeterminado: `https://denupe-backend.onrender.com`. |
+| `DENUPE_BACKEND_TIMEOUT_SECONDS` | Timeout de consulta del catálogo central; valor predeterminado: 12 segundos. |
+
 | `DISTRITOS_MAPSERVER_URL` | URL del servicio cartográfico de límites distritales, si se desea sobrescribir el valor predeterminado. |
 | `DISTRITOS_TIMEOUT_SECONDS` | Timeout de la consulta geográfica distrital. |
 | `PNP_MAPSERVER_URL` | URL base del servicio geográfico PNP, si se configura. |
@@ -321,7 +321,7 @@ pip install -r requirements-dev.txt
 | `RATE_LIMIT_PER_MINUTE` | Máximo de solicitudes por IP y minuto; predeterminado: 120 por proceso. |
 | `CORS_ORIGINS` | Lista separada por comas de orígenes web permitidos. |
 
-Configura las variables privadas en el entorno local o en el panel de Render. **Nunca publiques `INSFORGE_API_KEY`, ni la incluyas en Flutter, en el repositorio o en capturas.**
+Configura `DENUPE_BACKEND_BASE_URL` en el entorno del microservicio cuando uses una instancia distinta a producción. El catálogo central es de solo lectura y no requiere una clave administrativa en el microservicio de IA.
 
 ### Ejecutar
 
@@ -362,7 +362,7 @@ Para desplegar, configura las variables de entorno privadas en Render y vincula 
 - El backend no registra deliberadamente el título, la descripción, las coordenadas ni datos personales de la denuncia.
 - El limitador mantiene contadores en memoria. Para varias instancias debe sustituirse por Redis o un gateway gestionado.
 - **La API no implementa autenticación JWT ni valida la identidad del ciudadano.** CORS no reemplaza autenticación y una clave incluida en una app móvil puede extraerse. Antes de exponerla públicamente se debe integrar la validación de tokens del proveedor de identidad o un gateway autenticado.
-- La clave administrativa de InsForge solo debe utilizarse desde el backend y guardarse como secreto.
+- El microservicio de IA ya no requiere una clave administrativa de InsForge para consultar el catálogo territorial.
 - Los artefactos Joblib deben proceder de una fuente confiable, ya que su deserialización puede ejecutar código.
 - Los resultados de categoría y entidad son recomendaciones. No sustituyen la revisión de competencia ni ejecutan una derivación administrativa.
 - La cobertura y la precisión de las entidades dependen de la vigencia y completitud de los directorios y servicios geográficos disponibles. Una matriz territorial completa no equivale a contar con una institución concreta verificada para cada categoría.
