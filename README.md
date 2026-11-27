@@ -111,7 +111,7 @@ Para ejecutar el proyecto localmente se necesita:
 - Git.
 - pip y soporte para entornos virtuales de Python.
 - Acceso al backend principal de Render para probar el endpoint territorial REST.
-- No se necesita una credencial administrativa de InsForge; el catálogo del backend principal es de solo lectura.
+- El catálogo del backend principal es de solo lectura y no requiere una credencial administrativa desde este servicio.
 - Conexión a internet para consultar los servicios geográficos externos.
 
 Para ejecutar el contenedor también se necesita Docker. La URL del backend principal tiene un valor predeterminado de producción; puede configurarse mediante `DENUPE_BACKEND_BASE_URL` para entornos alternativos.
