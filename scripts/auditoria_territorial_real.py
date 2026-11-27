@@ -87,7 +87,7 @@ def consultar_distrito(distrito: dict) -> dict:
             for f in filas
         ],
         "errores": sorted(set(errores)),
-        # La RPC devuelve resolutores sectoriales, no un padrón de instituciones
+        # La endpoint REST devuelve resolutores sectoriales, no un padrón de instituciones
         # concretas. No se debe presentar esto como entidad pública verificada.
         "entidad_concreta_verificada": False,
     }
@@ -106,7 +106,7 @@ def main() -> int:
         fuente = response.read().decode("utf-8-sig")
     distritos = cargar_ubigeos(fuente)
     resultados = []
-    fallos_rpc = []
+    fallos_consulta = []
 
     workers = max(1, min(int(os.getenv("AUDIT_WORKERS", "4")), 8))
     with ThreadPoolExecutor(max_workers=workers) as executor:
@@ -116,13 +116,13 @@ def main() -> int:
             try:
                 resultados.append(futuro.result())
             except (BackendCatalogError, OSError, ValueError, RuntimeError) as exc:
-                fallos_rpc.append({
+                fallos_consulta.append({
                     **distrito,
                     "error": f"{type(exc).__name__}: {exc}",
                 })
 
     resultados.sort(key=lambda x: x["ubigeo"])
-    fallos_rpc.sort(key=lambda x: x["ubigeo"])
+    fallos_consulta.sort(key=lambda x: x["ubigeo"])
     con_errores = [r for r in resultados if r["errores"]]
     conteo_resolutores = Counter(
         (r["categoria"], r["id"], r["nombre"])
@@ -134,7 +134,7 @@ def main() -> int:
         "modo": "solo_lectura",\n        "backend_catalogo": backend_url,
         "ubigeos_fuente": len(distritos),
         "ubigeos_consultados_con_respuesta": len(resultados),
-        "ubigeos_con_error_rpc": len(fallos_rpc),
+        "ubigeos_con_error_consulta": len(fallos_consulta),
         "distritos_con_matriz_invalida": len(con_errores),
         "combinaciones_esperadas": len(distritos) * 8,
         "combinaciones_recibidas": sum(r["filas_recibidas"] for r in resultados),
@@ -145,18 +145,18 @@ def main() -> int:
         ],
         "entidades_concretas_verificadas": 0,
         "nota_entidades": (
-            "La RPC consultada devuelve resolutores sectoriales. Esta auditoría "
+            "La endpoint REST consultada devuelve resolutores sectoriales. Esta auditoría "
             "no acredita una entidad pública concreta ni su competencia individual."
         ),
         "errores_matriz": con_errores,
-        "errores_consulta": fallos_rpc,
+        "errores_consulta": fallos_consulta,
     }
     salida = Path(os.getenv("AUDIT_OUTPUT", "artifacts/auditoria-territorial-real.json"))
     salida.parent.mkdir(parents=True, exist_ok=True)
     salida.write_text(json.dumps(informe, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({k: v for k, v in informe.items() if k not in {"errores_matriz", "errores_consulta"}}, ensure_ascii=False, indent=2))
     print(f"Informe detallado: {salida}")
-    return 0 if not fallos_rpc and not con_errores and len(distritos) == 1893 else 1
+    return 0 if not fallos_consulta and not con_errores and len(distritos) == 1893 else 1
 
 
 if __name__ == "__main__":
