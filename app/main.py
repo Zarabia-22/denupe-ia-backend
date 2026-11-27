@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .predictor import cargar_modelo, sugerir_categoria
 from .entidades import sugerir_entidad, cargar_directorio, listar_entidades_disponibles, resolver_distrito_por_punto, catalogo_distrital_por_categoria
 from .schemas import DenunciaEntrada, SugerenciaSalida, EntidadEntrada, EntidadSalida, EntidadesDisponiblesSalida
-from .insforge_catalog import InsForgeCatalogError, consultar_matriz_distrital, consultar_resolutor_categoria
+from .backend_catalog import BackendCatalogError, consultar_matriz_distrital, consultar_resolutor_categoria
 
 
 @asynccontextmanager
@@ -80,7 +80,7 @@ def catalogo_territorial(
     try:
         territorio = resolver_distrito_por_punto(latitud, longitud)
         matriz = consultar_matriz_distrital(territorio["ubigeo"])
-    except InsForgeCatalogError as exc:
+    except BackendCatalogError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -89,7 +89,7 @@ def catalogo_territorial(
         "categorias": matriz,
         "total_categorias": len(matriz),
         "categorias_con_entidad_relacionada": len(matriz),
-        "fuente_catalogo": "InsForge: consultar_matriz_distrital_por_ubigeo",
+        "fuente_catalogo": "backend principal: consultar_matriz_distrital_por_ubigeo",
     }
 
 
@@ -102,7 +102,7 @@ def resolver_territorio(
     try:
         territorio = resolver_distrito_por_punto(latitud, longitud)
         matriz = consultar_matriz_distrital(territorio["ubigeo"])
-    except InsForgeCatalogError as exc:
+    except BackendCatalogError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -115,7 +115,7 @@ def resolver_territorio(
     tags=["Derivación inteligente"],
 )
 def predecir_entidad(denuncia: EntidadEntrada) -> EntidadSalida:
-    """GPS y matriz InsForge son requisitos previos a cualquier sugerencia."""
+    """GPS y matriz backend principal son requisitos previos a cualquier sugerencia."""
     if denuncia.latitud is None or denuncia.longitud is None:
         return EntidadSalida(sugerida=False, entidad=None,
             motivo="Primero registra la ubicación GPS. Sin coordenadas no se consulta ni asigna una entidad.")
@@ -132,7 +132,7 @@ def predecir_entidad(denuncia: EntidadEntrada) -> EntidadSalida:
         if not codigo:
             return EntidadSalida(sugerida=False, entidad=None, motivo="Categoría no reconocida por el catálogo territorial.")
         regla = consultar_resolutor_categoria(territorio["ubigeo"], codigo)
-    except InsForgeCatalogError as exc:
+    except BackendCatalogError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except RuntimeError as exc:
         return EntidadSalida(sugerida=False, entidad=None, motivo=f"No se pudo validar el punto GPS: {exc}")
@@ -179,7 +179,7 @@ def entidades_disponibles(
         if not codigo:
             raise HTTPException(status_code=422, detail="Categoría no reconocida.")
         consultar_resolutor_categoria(territorio["ubigeo"], codigo)
-    except InsForgeCatalogError as exc:
+    except BackendCatalogError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=422, detail=f"No se pudo resolver el distrito por GPS: {exc}") from exc
