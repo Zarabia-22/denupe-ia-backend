@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .predictor import cargar_modelo, sugerir_categoria
 from .entidades import sugerir_entidad, cargar_directorio, listar_entidades_disponibles, resolver_distrito_por_punto, catalogo_distrital_por_categoria
 from .schemas import DenunciaEntrada, SugerenciaSalida, EntidadEntrada, EntidadSalida, EntidadesDisponiblesSalida
-from .backend_catalog import BackendCatalogError, consultar_matriz_distrital, consultar_resolutor_categoria
+from .backend_catalog import BackendCatalogError, consultar_matriz_distrital
 
 
 @asynccontextmanager
@@ -121,7 +121,7 @@ def predecir_entidad(denuncia: EntidadEntrada) -> EntidadSalida:
             motivo="Primero registra la ubicación GPS. Sin coordenadas no se consulta ni asigna una entidad.")
     try:
         territorio = resolver_distrito_por_punto(denuncia.latitud, denuncia.longitud)
-        consultar_matriz_distrital(territorio["ubigeo"])
+        matriz = consultar_matriz_distrital(territorio["ubigeo"])
         codigos = {
             "alumbrado público": "alumbrado", "seguridad ciudadana": "seguridad",
             "limpieza y residuos": "limpieza", "agua y saneamiento": "agua",
@@ -131,7 +131,10 @@ def predecir_entidad(denuncia: EntidadEntrada) -> EntidadSalida:
         codigo = codigos.get(denuncia.categoria.casefold().strip())
         if not codigo:
             return EntidadSalida(sugerida=False, entidad=None, motivo="Categoría no reconocida por el catálogo territorial.")
-        regla = consultar_resolutor_categoria(territorio["ubigeo"], codigo)
+        reglas = [fila for fila in matriz if fila.get("categoria_code") == codigo]
+        if len(reglas) != 1:
+            raise BackendCatalogError("No existe un resolutor único para el distrito y la categoría.")
+        regla = reglas[0]
     except BackendCatalogError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except RuntimeError as exc:
